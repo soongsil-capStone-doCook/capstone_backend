@@ -1,0 +1,52 @@
+/* Header 기본 스타일 */
+.header {
+  display: flex; /* 가로 정렬 */
+  justify-content: space-between; /* 좌우 끝으로 정렬 */
+  align-items: center; /* 세로 가운데 정렬 */
+  padding: 16px 24px; /* 안쪽 여백 */
+  background-color: #535353;
+  color: white; /* 글자 색 */
+}
+
+/* 로고 스타일 */
+.Logo {
+  font-size: 20px;
+  font-weight: bold;
+  text-decoration: none; /* 링크 밑줄 제거 */
+  color: white;
+}
+
+/* 로그인 버튼 스타일 */
+.Login {
+  text-decoration: none;
+}
+
+/* 로그인 버튼에 마우스 올렸을 때 효과 */
+.Login:hover {
+  background-color: #343435;
+}
+
+/* 오른쪽 버튼들 정렬 */
+.header-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* 버튼 간 간격 */
+}
+
+/* 로그인, 프로필(임시) 버튼 스타일 */
+.Login,
+.MyPage {
+  background-color: #909397; /* 파란색 */
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  font-size: 16px;
+  border-radius: 5px; /* 모서리 둥글게 */
+  cursor: pointer;
+}
+
+/* 로그인, 프로필(임시) 버튼에 마우스 올렸을 때 효과 */
+.Login:hover,
+.MyPage:hover {
+  background-color: #343435;
+}

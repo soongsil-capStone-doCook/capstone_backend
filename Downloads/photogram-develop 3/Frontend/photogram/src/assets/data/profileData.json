@@ -1,0 +1,58 @@
+{
+  "me": {
+    "username": "치이카와",
+    "image": "https://buly.kr/APuwy1X",
+    "posts": 0,
+    "friends": 7
+  },
+
+  "friends": [
+    {
+      "username": "하치와레",
+      "image": "https://buly.kr/9MQP58a"
+    },
+    {
+      "username": "우사기",
+      "image": "https://buly.kr/BpF0oYz"
+    },
+    {
+      "username": "모몽가",
+      "image": "https://buly.kr/1n3ou4A"
+    },
+    {
+      "username": "쿠리만쥬",
+      "image": "https://buly.kr/Edt8Vch"
+    },
+    {
+      "username": "랏코",
+      "image": "https://buly.kr/3YDOiEH"
+    },
+    {
+      "username": "시사",
+      "image": "https://buly.kr/BeKFplB"
+    },
+    {
+      "username": "카니",
+      "image": "https://buly.kr/D3eJgHz"
+    }
+  ],
+
+  "newUsers": [
+    {
+      "username": "포셰트 갑옷",
+      "image": "https://buly.kr/44xeJ8b"
+    }
+  ],
+
+  "requests": [
+    {
+      "username": "키메라",
+      "image": "https://buly.kr/9MQNAaS"
+    },
+    {
+      "username": "풍뎅이",
+      "image": "https://buly.kr/BTPSwOe"
+    }
+  ]
+}
+

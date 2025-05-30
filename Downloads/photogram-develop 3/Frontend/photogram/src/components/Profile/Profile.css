@@ -1,0 +1,102 @@
+.profile-panel {
+    position: absolute;
+    top: 175px;
+    right: 156px;
+    width: 300px;
+    height: 400px;
+    background-color: #fffefe;
+    color: rgb(0, 0, 0);
+    padding: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden; /* 불필요한 외부 스크롤 방지 */
+}
+
+.profile-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.profile-main-image {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  margin-right: 12px;
+}
+
+.profile-username {
+  font-weight: bold;
+}
+
+.friend-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.friend-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+
+.friend-info {
+  flex: 1;
+}
+
+.friend-username {
+  font-weight: bold;
+  font-size: 14px;
+}  
+
+/* ✅ 고정된 영역: 친구 목록 제목 + 검색창 */
+.friend-fixed-header {
+  flex-shrink: 0;
+  margin-bottom: 10px;
+}
+
+.friend-section-header {
+  font-size: 14px;
+  color: gray;
+  margin-bottom: 8px;
+}
+
+.friend-search-input {
+    width: 100%;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 6px;
+    background-color: #d5d5d5;
+    color: rgb(0, 0, 0);
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.friend-scroll-list {
+    flex-grow: 1;
+    overflow-y: scroll;
+    background-color: #f8e7e7; /* ✅ 스크롤 영역 자체 배경도 통일 */
+}
+
+/* Webkit 스크롤바 */
+.friend-scroll-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.friend-scroll-list::-webkit-scrollbar-track {
+    background-color: #d9d3d3; /* ✅ 박스 배경과 동일하게 */
+}
+
+.friend-scroll-list::-webkit-scrollbar-thumb {
+    background-color: rgba(5, 3, 3, 0.3);
+    border-radius: 4px;
+}
+
+.friend-scroll-list::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(37, 35, 35, 0.5);
+}  

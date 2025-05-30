@@ -1,0 +1,381 @@
+.mp-profile-panel {
+  position: absolute;
+  top: 190px;
+  right: 135px;
+  width: 360px;
+  height: 450px;
+  background-color: rgba(34, 34, 34, 0.2);
+  color: white;
+  padding: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.mp-profile-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 20px; /* 추가: 아래 여백 확보 */
+  border-bottom: 1px solid #333; /* 선택: 시각적 구분선 */
+}
+
+.mp-profile-main-image {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  margin-right: 20px;
+}
+
+.mp-profile-username {
+  margin-bottom: 5px;
+}
+
+.mp-profile-realname {
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.mp-profile-introindex {
+  font-size: 12px;
+  color: #aaa;
+}
+
+.mp-profile-info-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mp-profile-meta {
+  display: flex;
+  gap: 45px;
+  margin-bottom: 7px;
+}
+
+.mp-meta-box {
+  display: flex;
+  gap: 4px;
+  align-items: baseline;
+}
+
+.mp-meta-label {
+  color: #aaa;
+  font-weight: normal;
+  font-size: 14px;
+}
+
+.mp-meta-value {
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.mp-settings-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 17px;
+  cursor: pointer;
+  color: #555;
+  border-radius: 8px;
+}
+
+.mp-settings-btn:hover{
+  background-color: #333;
+}
+
+/* 탭 부분 */
+.mp-friend-tab-buttons {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  margin-top: -15px;
+}
+
+.mp-friend-tab-button {
+  flex: 1;
+  background-color: transparent;
+  color: white;
+  font-size: 14px;
+  font-weight: normal;
+  border: none;
+  padding: 10px 0;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background-color 0.2s ease, font-weight 0.2s ease;
+}
+
+.mp-friend-tab-button:hover,
+.mp-friend-tab-button.active:hover {
+  background-color: #333;
+}
+
+.mp-friend-tab-button.active {
+  font-weight: bold;
+}
+
+/* 친구 목록 */
+.mp-friend-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.mp-friend-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+
+.mp-friend-info {
+  flex: 1;
+}
+
+.mp-friend-username-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.mp-friend-username {
+  font-weight: bold;
+  font-size: 14px;
+  color: white;
+}
+
+.mp-friend-realname {
+  font-size: 12px;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+.mp-friend-search-list-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background-color: #333;
+  color: white;
+  font-size: 14px;
+  box-sizing: border-box;
+  line-height: 16px;
+  margin-bottom: 11px;
+}
+
+.mp-friend-search-input {
+  width: 85%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background-color: #333;
+  color: white;
+  font-size: 14px;
+  box-sizing: border-box;
+  line-height: 16px;
+}
+
+.mp-friend-scroll-list {
+  flex-grow: 1;
+  overflow-y: auto;
+  height: 100%; /* 또는 적절한 max-height로 조정 가능 */
+}
+
+.mp-friend-scroll-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.mp-friend-scroll-list::-webkit-scrollbar-track {
+  background-color: #222;
+}
+
+.mp-friend-scroll-list::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.mp-friend-scroll-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+/* 친구 추가 */
+.mp-friend-add-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  margin-bottom: 10px;
+  overflow-y: auto;
+}
+
+.mp-friend-add-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+.mp-add-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mp-add-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+
+.mp-add-info {
+  flex: 1;
+}
+
+.mp-add-btn {
+  background-color: #2d8cff;
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+  border: none;
+  border-radius: 12px;
+  padding: 0 16px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  white-space: nowrap;
+  line-height: 32px;
+}
+
+.mp-add-btn:hover {
+  background-color: #1877f2;
+}
+
+.mp-search-bar-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 2px; /* 간격 없이 딱 붙이려면 0, 여유주려면 4~6px */
+}
+
+.mp-search-btn {
+  width: 15%;
+  height: 28px;
+  font-size: 16px;
+  background-color: #333;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.mp-search-btn:hover {
+  background-color: #444;
+}
+
+.mp-add-username-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.mp-add-username {
+  font-weight: bold;
+  font-size: 14px;
+  color: white;
+}
+
+.mp-add-realname {
+  font-size: 12px;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+/* 친구 수락 */
+.mp-friend-request-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+.mp-friend-request-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  background-color: #1e1e1e;
+  border-radius: 12px;
+  padding: 16px;
+  gap: 12px;
+}
+
+.mp-request-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mp-request-message {
+  flex: 1;
+  font-size: 14px;
+  color: white;
+  line-height: 1.4;
+  word-break: break-word;
+  padding-top: 2px;
+}
+
+.mp-accept-btn {
+  background-color: #2d8cff;
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+  border: none;
+  border-radius: 12px;
+  padding: 6px 16px;
+  height: 32px;
+  margin-top: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  white-space: nowrap;
+}
+
+.mp-accept-btn:hover {
+  background-color: #1877f2;
+}
+
+.mp-close-btn {
+  position: absolute;
+  top: -5px;
+  right: 7px;
+  background: transparent;
+  color: #aaa;
+  border: none;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.mp-close-btn:hover {
+  background-color: #333;
+  color: white;
+}

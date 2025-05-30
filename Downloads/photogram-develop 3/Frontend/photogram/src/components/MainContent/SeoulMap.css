@@ -1,0 +1,16 @@
+.seoul-map-container {
+  width: 1000px; /* 지도 너비를 800px에서 1000px로 증가 */
+  height: 750px; /* 지도 높이를 600px에서 750px로 증가 */
+  max-width: 90vw; /* 화면 너비의 90%를 넘지 않도록 */
+  max-height: 90vh; /* 화면 높이의 90%를 넘지 않도록 */
+}
+
+.seoul-map-container svg {
+  width: 100%;
+  height: 100%;
+  display: block; /* SVG의 기본 인라인 속성으로 인한 여백 제거 */
+}
+
+.seoul-map-container path {
+  transition: fill 0.3s ease, stroke 0.3s ease;
+}
