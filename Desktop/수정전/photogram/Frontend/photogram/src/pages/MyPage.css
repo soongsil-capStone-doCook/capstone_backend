@@ -1,0 +1,90 @@
+/* 지도 영역 */
+.mypage {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  background-color: #000;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  position: relative;
+}
+
+.mypage-map-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+/* 서치바 영역 */
+.mypage-search-bar-container {
+  position: absolute;
+  top: 10%;
+  left: 5%;
+  display: flex;
+  align-items: center;
+  background-color: #fff;
+  padding: 5px 15px;
+  border-radius: 25px;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.mypage-search-input {
+  border: none;
+  outline: none;
+  padding: 10px;
+  border-radius: 20px;
+  width: 200px;
+  font-size: 16px;
+}
+
+.mypage-search-icon {
+  font-size: 20px;
+  color: #007bff;
+  margin-left: 10px;
+  cursor: pointer;
+}
+
+.mypage-hashtag-suggestions {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  right: 0;
+  background-color: white;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 10px;
+  border-radius: 10px;
+  z-index: 10;
+  opacity: 0;
+  transform: translateY(-20px);
+  animation: showHashtags 0.5s ease-out forwards;
+}
+
+.mypage-hashtag {
+  padding: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #007bff;
+  font-weight: bold;
+}
+
+.mypage-hashtag:hover {
+  background-color: #f0f0f0;
+}
+
+@keyframes showHashtags {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
