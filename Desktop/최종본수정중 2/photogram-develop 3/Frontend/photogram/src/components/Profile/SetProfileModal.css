@@ -1,0 +1,167 @@
+/* 모달 오버레이 배경 */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+}
+
+.profile-modal {
+  max-width: 600px;
+  width: 100%;
+  background: #1e1e1e;
+  padding: 2rem;
+  border-radius: 12px;
+  color: white;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+/* 내부 폼 전체 레이아웃 */
+.profile-form .profile-row {
+  display: flex;
+  align-items: center; /* ✅ 사진과 텍스트 수직 정렬 */
+  gap: 2rem;
+}
+
+/* 왼쪽: 프로필 사진 */
+.left-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* 이미지 컨테이너 (클릭 가능) */
+.profile-image-wrapper {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  cursor: pointer;
+}
+
+/* 프로필 이미지 */
+.profile-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* ⚙️ 아이콘 */
+.gear-icon {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background-color: white;
+  border-radius: 50%;
+  padding: 4px;
+  font-size: 12px;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  color: black;
+}
+
+/* 오른쪽 패널: 닉네임, 메세지, 공개범위 */
+.right-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+}
+
+/* 닉네임 (수정 불가) */
+.nickname {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: white;
+}
+
+/* 한줄 메세지 입력창 */
+.message-input {
+  border: none;
+  border-bottom: 1px solid #666;
+  background-color: transparent;
+  outline: none;
+  color: white;
+  font-size: 1rem;
+  padding: 0.3rem 0;
+  width: 100%;
+}
+.nickname-input {
+  border: none;
+  border-bottom: 1px solid #666;
+  background-color: transparent;
+  outline: none;
+  color: white;
+  font-size: 1rem;
+  padding: 0.3rem 0;
+  width: 100%;
+}
+/* placeholder 스타일 */
+.message-input::placeholder {
+  color: #aaa;
+}
+.nickname-input::placeholder {
+  color: #aaa;
+}
+/* 공개 범위 라디오 버튼 섹션 */
+.visibility {
+  color: white;
+}
+
+.visibility label {
+  margin-right: 1rem;
+}
+
+/* 저장 / 취소 버튼 */
+.modal-buttons {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.modal-buttons button {
+  padding: 0.5rem 1.2rem;
+  font-size: 0.95rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.modal-buttons button[type="submit"] {
+  background-color: #007bff;
+  color: white;
+}
+
+.cancel {
+  background-color: #555;
+  color: white;
+}
+
+.delete-account {
+  background-color: #d9534f; /* 부트스트랩 계열의 빨간색 */
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.delete-account:hover {
+  background-color: #c9302c; /* 더 진한 빨강 */
+}
+.delete-account {
+  margin-right: auto;
+}
