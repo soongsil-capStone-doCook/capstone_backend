@@ -1,16 +1,13 @@
-FROM amazoncorretto:17 AS builder
-WORKDIR /app
-COPY gradlew .
-COPY gradle gradle
-COPY build.gradle settings.gradle .
-RUN chmod +x ./gradlew
-RUN ./gradlew dependencies --no-daemon
-
-COPY src src
-RUN ./gradlew clean bootJar -x test --no-daemon
-
+# [실행용 Dockerfile]
 FROM amazoncorretto:17
+
 WORKDIR /app
-COPY --from=builder /app/build/libs/*.jar app.jar
+
+# 아까 scp로 보낸 app.jar를 컨테이너 안으로 복사
+COPY app.jar app.jar
+
+# 프로파일 설정
 ENV SPRING_PROFILES_ACTIVE=prod
+
+# 바로 실행
 ENTRYPOINT ["java", "-jar", "app.jar"]
