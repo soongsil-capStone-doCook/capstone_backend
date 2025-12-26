@@ -1,0 +1,22 @@
+# 맥/윈도우 시스템 파일
+.DS_Store
+Thumbs.db
+
+# IntelliJ 등 IDE 설정 파일
+.idea/
+*.iml
+.vscode/
+
+# 빌드 결과물 (절대 올리면 안 됨)
+build/
+out/
+dist/
+*.jar
+*.class
+
+# Gradle 캐시
+.gradle/
+
+# 환경 변수 및 키 파일 (보안)
+.env
+*.pem
