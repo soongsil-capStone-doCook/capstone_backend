@@ -23,7 +23,7 @@ public class KakaoClient {
     @Value("${app.kakao.redirect-uri}")
     private String redirectUri;
 
-    public KakaoTokenResponse getToken(String code) {
+    public KakaoTokenResponse getToken(String code, String redirectUri) {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "authorization_code");
         form.add("client_id", clientId);

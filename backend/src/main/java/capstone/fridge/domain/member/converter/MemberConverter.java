@@ -19,11 +19,26 @@ public class MemberConverter {
     private static final String S3_BASE_URL = "https://capstone-fridge.s3.ap-northeast-2.amazonaws.com/recipes/"; // 실제 버킷 주소로 수정 필요
 
     public static MemberResponseDTO.UserInfoDTO toUserInfoDTO(Member member) {
+        // 1. 알레르기 리스트 추출
+        List<String> allergies = member.getPreferences().stream()
+                .filter(p -> p.getType() == PreferenceType.ALLERGY)
+                .map(MemberPreference::getIngredientName)
+                .collect(Collectors.toList());
+
+        // 2. 기피 음식 리스트 추출
+        List<String> dislikes = member.getPreferences().stream()
+                .filter(p -> p.getType() == PreferenceType.DISLIKE)
+                .map(MemberPreference::getIngredientName)
+                .collect(Collectors.toList());
+
+        // 3. DTO 생성 및 반환
         return MemberResponseDTO.UserInfoDTO.builder()
                 .memberId(member.getId())
                 .nickname(member.getNickname())
                 .email(member.getEmail())
                 .profileImageUrl(member.getProfileImageUrl())
+                .allergies(allergies) // 추가
+                .dislikedIngredients(dislikes)   // 추가
                 .build();
     }
 
@@ -42,7 +57,7 @@ public class MemberConverter {
 
         return MemberResponseDTO.UserPreferencesDTO.builder()
                 .allergies(allergies)
-                .dislikes(dislikes)
+                .dislikedIngredients(dislikes)
                 .age(member.getAge())
                 .gender(member.getGender())
                 .build();
@@ -64,8 +79,8 @@ public class MemberConverter {
         }
 
         // 기피 음식 리스트 변환
-        if (request.getDislikes() != null) {
-            request.getDislikes().forEach(name -> {
+        if (request.getDislikedIngredients() != null) {
+            request.getDislikedIngredients().forEach(name -> {
                 preferenceList.add(MemberPreference.builder()
                         .member(member)
                         .ingredientName(name)

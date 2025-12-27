@@ -26,7 +26,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
 
     public AuthDtos.TokenRes loginKakao(AuthDtos.KakaoLoginReq req) {
-        var token = kakaoClient.getToken(req.code());
+        var token = kakaoClient.getToken(req.code(), req.redirectUri());
         var me = kakaoClient.getUser(token.accessToken());
 
         String kakaoId = String.valueOf(me.id());

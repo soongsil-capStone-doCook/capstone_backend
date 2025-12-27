@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  # 1. RDS 사용 (컨테이너 없음, 환경변수로 접속)
+  # RDS 사용 (컨테이너 없음, 환경변수로 접속)
 
-  # 2. Qdrant 벡터 데이터베이스
+  # 1. Qdrant 벡터 데이터베이스
   qdrant-container:
     image: qdrant/qdrant
     container_name: fridge-qdrant
@@ -13,7 +13,7 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
-  # 3. Python 임베딩 서버
+  # 2. Python 임베딩 서버
   embedding-service:
     build: 
       context: ./python_embedding
@@ -23,6 +23,23 @@ services:
       - "5000:5000"
     environment:
       - PORT=5000
+  
+  # 3. FastAPI 서버 (OCR 및 냉장고 정리용)
+  fastapi-service:
+    build:
+      context: ./fastapi
+      dockerfile: Dockerfile
+    container_name: fridge-fastapi
+    ports:
+      # 기존 8000번 포트 충돌 방지를 위해 8001번으로 매핑
+      - "8001:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=gpt-4.1-nano
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/google-key.json
+    volumes:
+      - ./secrets:/app/secrets
+    restart: always
 
   # 4. Spring Boot 백엔드
   backend-service:
@@ -48,6 +65,7 @@ services:
     depends_on:
       - qdrant-container
       - embedding-service
+      - fastapi-service
 
 volumes:
   qdrant_data:

@@ -55,9 +55,16 @@ public class JwtTokenProvider {
         try {
             parseClaims(token);
             return true;
-        } catch (JwtException | IllegalArgumentException e) {
-            return false;
+        } catch (io.jsonwebtoken.security.SecurityException | io.jsonwebtoken.MalformedJwtException e) {
+            System.out.println("JWT 오류: 잘못된 JWT 서명입니다.");
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            System.out.println("JWT 오류: 만료된 JWT 토큰입니다.");
+        } catch (io.jsonwebtoken.UnsupportedJwtException e) {
+            System.out.println("JWT 오류: 지원되지 않는 JWT 토큰입니다.");
+        } catch (IllegalArgumentException e) {
+            System.out.println("JWT 오류: JWT 토큰이 잘못되었습니다.");
         }
+        return false;
     }
 
     public Date getExpiration(String token) {

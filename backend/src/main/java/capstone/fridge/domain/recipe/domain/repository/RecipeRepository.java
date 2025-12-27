@@ -24,4 +24,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long> {
             @Param("fridgeIngredients") List<String> fridgeIngredients,
             @Param("excludedIngredients") List<String> excludedIngredients
     );
+
+    @Query(value = "SELECT * FROM recipe ORDER BY RAND() LIMIT :limit", nativeQuery = true)
+    List<Recipe> findRandomRecipes(@Param("limit") int limit);
 }

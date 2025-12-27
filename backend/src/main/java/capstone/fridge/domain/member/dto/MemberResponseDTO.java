@@ -17,6 +17,8 @@ public class MemberResponseDTO {
         private String nickname;
         private String email;
         private String profileImageUrl;
+        private List<String> allergies;
+        private List<String> dislikedIngredients;
     }
 
     @Builder
@@ -24,7 +26,7 @@ public class MemberResponseDTO {
     @AllArgsConstructor
     public static class UserPreferencesDTO {
         private List<String> allergies;
-        private List<String> dislikes;
+        private List<String> dislikedIngredients;
         private String age;
         private String gender;
     }

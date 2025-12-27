@@ -51,11 +51,11 @@ public class RecipeServiceImpl implements RecipeService {
     private final RecipeScrapRepository recipeScrapRepository;
 
     @Override
-    public List<RecipeResponseDTO.RecipeDTO> recommendRecipes(String kakaoId) {
+    public List<RecipeResponseDTO.RecipeDTO> recommendRecipes(Long memberId) {
 
         // 1. 멤버 검증
-        Member member = memberRepository.findByKakaoId(kakaoId)
-                .orElseThrow(() -> new memberException(ErrorStatus._MEMBER_NOT_FOUND));
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
 
         // 2. 사용자의 냉장고 재료 가져오기
         List<String> fridgeIngredients = fridgeIngredientRepository.findIngredientNamesByMemberId(member.getId());
@@ -86,13 +86,11 @@ public class RecipeServiceImpl implements RecipeService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<RecipeResponseDTO.RecipeDTO> recommendMissingRecipes(String kakaoId) {
+    public List<RecipeResponseDTO.RecipeDTO> recommendMissingRecipes(Long memberId) {
 
         // 1. 멤버 검증
-        Member member = memberRepository.findByKakaoId(kakaoId)
-                .orElseThrow(() -> new memberException(ErrorStatus._MEMBER_NOT_FOUND));
-
-        Long memberId = member.getId();
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
 
         // 2. 사용자의 냉장고 재료 가져오기
         List<String> ingredients = fridgeIngredientRepository.findIngredientNamesByMemberId(member.getId());
@@ -167,20 +165,24 @@ public class RecipeServiceImpl implements RecipeService {
     }
 
     @Override
-    public List<RecipeResponseDTO.RecipeDTO> recommendScrapsRecipes(String kakaoId) {
+    public List<RecipeResponseDTO.RecipeDTO> recommendScrapsRecipes(Long memberId) {
 
         // 1. 사용자 검증
-        Member member = memberRepository.findByKakaoId(kakaoId)
-                .orElseThrow(() -> new memberException(ErrorStatus._MEMBER_NOT_FOUND));
-
-        Long memberId = member.getId();
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
 
         // 2. 사용자가 찜한(Scrap) 레시피 목록 조회
         List<RecipeScrap> scraps = recipeScrapRepository.findAllByMemberIdWithRecipe(memberId);
 
         if (scraps.isEmpty()) {
-            // 찜한 게 없으면 빈 리스트 반환 (또는 랜덤 추천 로직으로 대체 가능)
-            return Collections.emptyList();
+            log.info("찜한 레시피가 없어 랜덤 추천을 실행합니다. memberId={}", memberId);
+
+            // DB에서 랜덤하게 5개 가져오기 (Native Query 사용 시 가장 효율적)
+            List<Recipe> randomRecipes = recipeRepository.findRandomRecipes(5);
+
+            return randomRecipes.stream()
+                    .map(RecipeConverter::toRecipeDTO)
+                    .collect(Collectors.toList());
         }
 
         // 3. 찜한 레시피들의 ID 목록 (이미 본 건 추천 제외하기 위함)
@@ -260,13 +262,13 @@ public class RecipeServiceImpl implements RecipeService {
     }
 
     @Override
-    public List<RecipeResponseDTO.RecipeDTO> searchRecipe(RecipeRequestDTO.SearchRecipeDTO request) {
+    public List<RecipeResponseDTO.RecipeDTO> searchRecipe(Long memberId, RecipeRequestDTO.SearchRecipeDTO request) {
 
-        Member member = memberRepository.findByKakaoId(request.getKakaoId())
-                .orElseThrow(() -> new memberException(ErrorStatus._MEMBER_NOT_FOUND));
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
 
         // 1. 검색어가 없으면 빈 리스트 반환 (또는 전체 조회)
-        if (request.getKeyword() == null || request.getKeyword().trim().isEmpty()) {
+        if (request == null || request.getKeyword() == null || request.getKeyword().trim().isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -276,18 +278,18 @@ public class RecipeServiceImpl implements RecipeService {
         // 3. 필터 생성 (알레르기 필터)
         Filter.Builder filterBuilder = Filter.newBuilder();
 
-        if (Boolean.TRUE.equals(request.getExcludeAllergy()) && member.getId() != null) {
+        if (Boolean.TRUE.equals(request.getExcludeAllergy())) {
             List<MemberPreference> preferences = memberPreferenceRepository.findAllByMemberId(member.getId());
             for (MemberPreference pref : preferences) {
-                // 알레르기 재료가 포함된 레시피 제외 (Must Not)
                 filterBuilder.addMustNot(Condition.newBuilder()
                         .setField(FieldCondition.newBuilder()
-                                .setKey("ingredients") // Qdrant Payload Key
+                                .setKey("ingredients")
                                 .setMatch(Match.newBuilder().setKeyword(pref.getIngredientName()).build())
                                 .build())
                         .build());
             }
         }
+
         Filter filter = filterBuilder.build();
 
         try {
@@ -329,10 +331,10 @@ public class RecipeServiceImpl implements RecipeService {
 
     @Override
     @Transactional
-    public RecipeResponseDTO.RecipeScrapDTO scrapRecipe(Long recipeId, String kakaoId) {
+    public RecipeResponseDTO.RecipeScrapDTO scrapRecipe(Long recipeId, Long memberId) {
 
-        Member member = memberRepository.findByKakaoId(kakaoId)
-                .orElseThrow(() -> new memberException(ErrorStatus._MEMBER_NOT_FOUND));
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
 
         Recipe recipe = recipeRepository.findById(recipeId)
                 .orElseThrow(() -> new recipeException(ErrorStatus._RECIPE_NOT_FOUND));
@@ -357,10 +359,10 @@ public class RecipeServiceImpl implements RecipeService {
 
     @Override
     @Transactional
-    public void deleteScrapRecipe(Long recipeId, String kakaoId) {
+    public void deleteScrapRecipe(Long recipeId, Long memberId) {
 
-        Member member = memberRepository.findByKakaoId(kakaoId)
-                .orElseThrow(() -> new memberException(ErrorStatus._MEMBER_NOT_FOUND));
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
 
         RecipeScrap scrap = recipeScrapRepository.findByMemberIdAndRecipeId(member.getId(), recipeId)
                 .orElseThrow(() -> new recipeException(ErrorStatus._SCRAP_NOT_FOUND));

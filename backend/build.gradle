@@ -29,7 +29,7 @@ dependencies {
 
 	// Core Starters
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	//implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
 	implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -56,6 +56,7 @@ dependencies {
 
 	// 벡터 DB
 	implementation 'io.qdrant:client:1.11.0'
+	implementation 'com.google.protobuf:protobuf-java:3.25.1'
 }
 
 tasks.named('test') {

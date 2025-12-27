@@ -7,7 +7,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 @Service
-@Profile("dev")
+// @Profile("dev")
 public class DummyOcrService implements OcrService {
 
     @Override

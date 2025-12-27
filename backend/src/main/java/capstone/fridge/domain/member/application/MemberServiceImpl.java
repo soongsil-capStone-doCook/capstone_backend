@@ -29,18 +29,19 @@ public class MemberServiceImpl implements MemberService {
     private final RecipeScrapRepository recipeScrapRepository;
 
     @Override
-    public MemberResponseDTO.UserInfoDTO getUserInfo(String kakaoId) {
-        Member member = memberRepository.findByKakaoId(kakaoId)
-                .orElseThrow(() -> new memberException(ErrorStatus._MEMBER_NOT_FOUND));
+    @Transactional(readOnly = true)
+    public MemberResponseDTO.UserInfoDTO getUserInfo(Long memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
 
         return MemberConverter.toUserInfoDTO(member);
     }
 
     @Override
     @Transactional
-    public MemberResponseDTO.UserPreferencesDTO setUserPreferences(String kakaoId, MemberRequestDTO.UserPreferencesDTO request) {
-        Member member = memberRepository.findByKakaoId(kakaoId)
-                .orElseThrow(() -> new memberException(ErrorStatus._MEMBER_NOT_FOUND));
+    public MemberResponseDTO.UserPreferencesDTO setUserPreferences(Long memberId, MemberRequestDTO.UserPreferencesDTO request) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
 
         // 1. 나이, 성별 업데이트 (값이 있을 때만 Entity 내부에서 변경됨)
         member.updateProfile(request.getAge(), request.getGender());
@@ -59,9 +60,9 @@ public class MemberServiceImpl implements MemberService {
 
     // 3. 찜한 레시피 목록 조회
     @Override
-    public MemberResponseDTO.UserScrapsDTO getUserScraps(String kakaoId) {
-        Member member = memberRepository.findByKakaoId(kakaoId)
-                .orElseThrow(() -> new memberException(ErrorStatus._MEMBER_NOT_FOUND));
+    public MemberResponseDTO.UserScrapsDTO getUserScraps(Long memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
 
         // 해당 멤버가 찜한 레시피 목록 조회
         List<RecipeScrap> scrapList = recipeScrapRepository.findAllByMemberWithRecipe(member);
@@ -70,10 +71,10 @@ public class MemberServiceImpl implements MemberService {
     }
 
     @Override
-    public MemberResponseDTO.OnboardingStatusDTO checkOnboardingStatus(String kakaoId) {
+    public MemberResponseDTO.OnboardingStatusDTO checkOnboardingStatus(Long memberId) {
         // 1. 회원 조회
-        Member member = memberRepository.findByKakaoId(kakaoId)
-                .orElseThrow(() -> new memberException(ErrorStatus._MEMBER_NOT_FOUND));
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
 
         // 2. 온보딩 여부 판단 로직
         boolean isOnboarded = (member.getAge() != null && member.getGender() != null);
