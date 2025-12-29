@@ -56,6 +56,7 @@ dependencies {
 
 	// 벡터 DB
 	implementation 'io.qdrant:client:1.11.0'
+
 	implementation 'com.google.protobuf:protobuf-java:3.25.1'
 }
 

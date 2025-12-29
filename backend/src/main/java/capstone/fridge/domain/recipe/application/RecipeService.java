@@ -13,7 +13,7 @@ public interface RecipeService {
 
     List<RecipeResponseDTO.RecipeDTO> recommendScrapsRecipes(Long memberId);
 
-    RecipeResponseDTO.RecipeInfoDTO getRecipe(Long memberId);
+    RecipeResponseDTO.RecipeInfoDTO getRecipe(Long recipeId, Long memberId);
 
     List<RecipeResponseDTO.RecipeDTO> searchRecipe(Long memberId, RecipeRequestDTO.SearchRecipeDTO request);
 

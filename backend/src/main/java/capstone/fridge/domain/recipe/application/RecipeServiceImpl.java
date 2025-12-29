@@ -28,10 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -78,9 +75,11 @@ public class RecipeServiceImpl implements RecipeService {
         // 4. DB 조회 (냉장고 재료로만 가능한 레시피 검색)
         List<Recipe> cookableRecipes = recipeRepository.findCookableRecipes(fridgeIngredients, excludedIngredients);
 
+        Set<Long> scrapIds = getScrappedRecipeIds(memberId);
+
         // 5. Converter를 사용하여 DTO 변환 및 반환
         return cookableRecipes.stream()
-                .map(RecipeConverter::toRecipeDTO)
+                .map(recipe -> RecipeConverter.toRecipeDTO(recipe, scrapIds.contains(recipe.getId())))
                 .collect(Collectors.toList());
     }
 
@@ -145,6 +144,8 @@ public class RecipeServiceImpl implements RecipeService {
             // 8. MySQL 상세 조회 및 반환
             List<Recipe> recipes = recipeRepository.findAllById(recipeIds);
 
+            Set<Long> scrapIds = getScrappedRecipeIds(memberId);
+
             return recipes.stream()
                     .map(recipe -> {
                         List<String> recipeIngredientNames = recipe.getIngredients().stream()
@@ -154,7 +155,7 @@ public class RecipeServiceImpl implements RecipeService {
                         List<String> missingIngredients = new ArrayList<>(recipeIngredientNames);
                         missingIngredients.removeAll(ingredients);
 
-                        return RecipeConverter.toRecipeDTO(recipe, missingIngredients);
+                        return RecipeConverter.toRecipeDTO(recipe, missingIngredients, scrapIds.contains(recipe.getId()));
                     })
                     .collect(Collectors.toList());
 
@@ -174,6 +175,8 @@ public class RecipeServiceImpl implements RecipeService {
         // 2. 사용자가 찜한(Scrap) 레시피 목록 조회
         List<RecipeScrap> scraps = recipeScrapRepository.findAllByMemberIdWithRecipe(memberId);
 
+        Set<Long> scrapIds = getScrappedRecipeIds(memberId);
+
         if (scraps.isEmpty()) {
             log.info("찜한 레시피가 없어 랜덤 추천을 실행합니다. memberId={}", memberId);
 
@@ -181,7 +184,7 @@ public class RecipeServiceImpl implements RecipeService {
             List<Recipe> randomRecipes = recipeRepository.findRandomRecipes(5);
 
             return randomRecipes.stream()
-                    .map(RecipeConverter::toRecipeDTO)
+                    .map(recipe -> RecipeConverter.toRecipeDTO(recipe, scrapIds.contains(recipe.getId())))
                     .collect(Collectors.toList());
         }
 
@@ -239,7 +242,7 @@ public class RecipeServiceImpl implements RecipeService {
 
             // 10. Converter를 사용해 DTO 변환
             return recipes.stream()
-                    .map(RecipeConverter::toRecipeDTO)
+                    .map(recipe -> RecipeConverter.toRecipeDTO(recipe, scrapIds.contains(recipe.getId())))
                     .collect(Collectors.toList());
 
         } catch (InterruptedException | ExecutionException e) {
@@ -249,16 +252,25 @@ public class RecipeServiceImpl implements RecipeService {
     }
 
     @Override
-    public RecipeResponseDTO.RecipeInfoDTO getRecipe(Long recipeId) {
-        // 1. 레시피 조회 (없으면 예외 발생)
+    @Transactional
+    public RecipeResponseDTO.RecipeInfoDTO getRecipe(Long recipeId, Long memberId) {
+        // 1. 레시피 조회
         Recipe recipe = recipeRepository.findById(recipeId)
                 .orElseThrow(() -> new recipeException(ErrorStatus._RECIPE_NOT_FOUND));
 
-        // 2. 조회수 증가 로직 (선택 사항: 상세 조회 시 조회수 +1)
-        recipe.increaseViewCount();
+        // 2. 조회수 증가
+        recipe.increaseViewCount(); // 메서드명 확인
 
-        // 3. Converter를 통해 상세 DTO 변환 및 반환
-        return RecipeConverter.toRecipeInfoDTO(recipe);
+        // 3. 찜 여부 확인 로직
+        boolean isScrapped = false;
+
+        // 로그인한 사용자(memberId가 있는 경우)만 DB 조회
+        if (memberId != null) {
+            isScrapped = recipeScrapRepository.existsByMemberIdAndRecipeId(memberId, recipeId);
+        }
+
+        // 4. Converter 호출 (isScrapped 전달)
+        return RecipeConverter.toRecipeInfoDTO(recipe, isScrapped);
     }
 
     @Override
@@ -318,9 +330,25 @@ public class RecipeServiceImpl implements RecipeService {
             Map<Long, Recipe> recipeMap = recipes.stream()
                     .collect(Collectors.toMap(Recipe::getId, Function.identity()));
 
+            Set<Long> scrapIds = getScrappedRecipeIds(memberId);
+
+            List<String> userIngredients = fridgeIngredientRepository.findIngredientNamesByMemberId(member.getId());
+
             return recipeIds.stream()
                     .filter(recipeMap::containsKey)
-                    .map(id -> RecipeConverter.toRecipeDTO(recipeMap.get(id)))
+                    .map(id -> {
+                        Recipe recipe = recipeMap.get(id);
+
+                        List<String> recipeIngredientNames = recipe.getIngredients().stream()
+                                .map(RecipeIngredient::getName)
+                                .collect(Collectors.toList());
+
+                        List<String> missingIngredients = new ArrayList<>(recipeIngredientNames);
+
+                        missingIngredients.removeAll(userIngredients);
+
+                        return RecipeConverter.toRecipeDTO(recipe, missingIngredients, scrapIds.contains(recipe.getId()));
+                    })
                     .collect(Collectors.toList());
 
         } catch (Exception e) {
@@ -373,5 +401,10 @@ public class RecipeServiceImpl implements RecipeService {
         recipe.decreaseScrapsCount();
 
         recipeScrapRepository.delete(scrap);
+    }
+
+    private Set<Long> getScrappedRecipeIds(Long memberId) {
+        if (memberId == null) return new HashSet<>();
+        return new HashSet<>(recipeScrapRepository.findRecipeIdsByMemberId(memberId));
     }
 }

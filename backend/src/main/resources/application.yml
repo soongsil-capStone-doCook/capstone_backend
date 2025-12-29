@@ -12,7 +12,7 @@ spring:
 
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/fridge?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul
-    username: root
+    username: admin
     password: ${DB_PASSWORD:thdtjdghks2@}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
@@ -89,10 +89,10 @@ app:
     client-id: ${KAKAO_CLIENT_ID}
     client-secret: ${KAKAO_CLIENT_SECRET}
     redirect-uri: ${KAKAO_REDIRECT_URI}
-    jwt:
-      secret: ${JWT_SECRET}
-      access-exp-sec: 3600
-      refresh-exp-sec: 1209600
+  jwt:
+    secret: ${JWT_SECRET}
+    access-exp-sec: 3600
+    refresh-exp-sec: 1209600
 
 qdrant:
   url: qdrant-container # Docker 서비스명

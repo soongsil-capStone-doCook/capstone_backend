@@ -62,9 +62,10 @@ public class RecipeRestController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse( responseCode = "RECIPE_203", description = "OK, 성공적으로 조회되었습니다.")
     })
     public BaseResponse<RecipeResponseDTO.RecipeInfoDTO> getRecipe(
+            @AuthenticationPrincipal Long memberId,
             @PathVariable Long recipeId
     ) {
-        RecipeResponseDTO.RecipeInfoDTO result = recipeService.getRecipe(recipeId);
+        RecipeResponseDTO.RecipeInfoDTO result = recipeService.getRecipe(recipeId, memberId);
         return BaseResponse.onSuccess(SuccessStatus.RECIPE_INFO, result);
     }
 

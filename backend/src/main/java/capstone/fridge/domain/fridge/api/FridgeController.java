@@ -73,4 +73,12 @@ public class FridgeController {
     ) {
         return ResponseEntity.ok(fridgeService.addManualBatch(memberId, req));
     }
+//    @DeleteMapping("/{ingredientId}")
+//    public ResponseEntity<Void> deleteIngredient(
+//            @AuthenticationPrincipal Long memberId,
+//            @PathVariable Long ingredientId
+//    ) {
+//        fridgeService.delete(memberId, ingredientId);
+//        return ResponseEntity.noContent().build();
+//    }
 }

@@ -21,4 +21,9 @@ public interface RecipeScrapRepository extends JpaRepository<RecipeScrap, Long> 
     Optional<RecipeScrap> findByMemberIdAndRecipeId(Long memberId, Long recipeId);
 
     boolean existsByMemberAndRecipe(Member member, Recipe recipe);
+
+    @Query("SELECT rs.recipe.id FROM RecipeScrap rs WHERE rs.member.id = :memberId")
+    List<Long> findRecipeIdsByMemberId(@Param("memberId") Long memberId);
+
+    boolean existsByMemberIdAndRecipeId(Long memberId, Long recipeId);
 }
