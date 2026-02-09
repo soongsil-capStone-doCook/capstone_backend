@@ -20,4 +20,8 @@ public interface RecipeService {
     RecipeResponseDTO.RecipeScrapDTO scrapRecipe(Long recipeId, Long memberId);
 
     void deleteScrapRecipe(Long recipeId, Long memberId);
+
+    List<RecipeResponseDTO.RecipeDTO> recommendRecipesHybrid(Long memberId);
+
+    List<RecipeResponseDTO.RecipeDTO> recommendMissingRecipesHybrid(Long memberId);
 }

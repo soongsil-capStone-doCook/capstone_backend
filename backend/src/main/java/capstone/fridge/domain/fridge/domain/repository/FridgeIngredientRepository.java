@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,8 +14,16 @@ public interface FridgeIngredientRepository extends JpaRepository<FridgeIngredie
     Optional<FridgeIngredient> findByIdAndMemberId(Long id, Long memberId);
     List<FridgeIngredient> findAllByMemberIdAndFridgeSlotIsNullOrderByCreatedAtDesc(Long memberId);
     List<FridgeIngredient> findAllByMember_IdAndFridgeSlotIsNull(Long memberId);
-    List<FridgeIngredient> findAllByMemberId(Long memberId);
 
     @Query("SELECT fi.name FROM FridgeIngredient fi WHERE fi.member.id = :memberId")
     List<String> findIngredientNamesByMemberId(@Param("memberId") Long memberId);
+
+    @Query("SELECT fi FROM FridgeIngredient fi WHERE fi.member.id = :memberId")
+    List<FridgeIngredient> findAllByMemberId(@Param("memberId") Long memberId);
+
+    @Query("SELECT fi FROM FridgeIngredient fi JOIN FETCH fi.member WHERE fi.expiryDate BETWEEN :startDate AND :endDate")
+    List<FridgeIngredient> findAllByExpiryDateBetween(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
 }

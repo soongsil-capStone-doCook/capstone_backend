@@ -32,18 +32,21 @@ public class Member extends BaseTimeEntity {
 
     private String gender;
 
+    private String fcmToken;
+
     // 알레르기 및 기피 음식 (1:N)
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<MemberPreference> preferences = new ArrayList<>();
 
     @Builder
-    public Member(String kakaoId, String nickname, String email, String profileImageUrl, String age, String gender) {
+    public Member(String kakaoId, String nickname, String email, String profileImageUrl, String age, String gender, String fcmToken) {
         this.kakaoId = kakaoId;
         this.nickname = nickname;
         this.email = email;
         this.profileImageUrl = profileImageUrl;
         this.age = age;
         this.gender = gender;
+        this.fcmToken = fcmToken;
     }
 
     public void updateProfile(String age, String gender) {
@@ -53,5 +56,9 @@ public class Member extends BaseTimeEntity {
         if (gender != null) {
             this.gender = gender;
         }
+    }
+
+    public void updateFcmToken(String token) {
+        this.fcmToken = token;
     }
 }

@@ -1,6 +1,8 @@
 package capstone.fridge.domain.member.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 
@@ -12,5 +14,12 @@ public class MemberRequestDTO {
         private List<String> dislikedIngredients;  // 기피 음식 재료명 리스트
         private String age;
         private String gender;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FcmTokenDTO {
+        private String token;
     }
 }

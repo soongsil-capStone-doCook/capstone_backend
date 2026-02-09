@@ -1,5 +1,6 @@
 package capstone.fridge.domain.recipe.application;
 
+import capstone.fridge.domain.fridge.domain.entity.FridgeIngredient;
 import capstone.fridge.domain.fridge.domain.repository.FridgeIngredientRepository;
 import capstone.fridge.domain.member.domain.entity.Member;
 import capstone.fridge.domain.member.domain.entity.MemberPreference;
@@ -23,11 +24,15 @@ import io.qdrant.client.grpc.Points.Filter;
 import io.qdrant.client.grpc.Points.Condition;
 import io.qdrant.client.grpc.Points.FieldCondition;
 import io.qdrant.client.grpc.Points.Match;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
@@ -46,6 +51,10 @@ public class RecipeServiceImpl implements RecipeService {
     private final MemberRepository memberRepository;
     private final MemberPreferenceRepository memberPreferenceRepository;
     private final RecipeScrapRepository recipeScrapRepository;
+
+    private static final double WEIGHT_VECTOR = 0.6;
+    private static final double WEIGHT_URGENCY = 0.3;
+    private static final double WEIGHT_PREF = 0.1;
 
     @Override
     public List<RecipeResponseDTO.RecipeDTO> recommendRecipes(Long memberId) {
@@ -403,8 +412,205 @@ public class RecipeServiceImpl implements RecipeService {
         recipeScrapRepository.delete(scrap);
     }
 
+    @Override
+    public List<RecipeResponseDTO.RecipeDTO> recommendRecipesHybrid(Long memberId) {
+        // 1. 멤버 검증
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
+
+        // 2. 내 냉장고 재료(엔티티) 조회 - 유통기한 정보 포함
+        List<FridgeIngredient> myIngredients = fridgeIngredientRepository.findAllByMemberId(memberId);
+        if (myIngredients.isEmpty()) return Collections.emptyList();
+
+        // 이름 리스트 추출 (DB 조회용)
+        List<String> ingredientNames = myIngredients.stream()
+                .map(FridgeIngredient::getName)
+                .collect(Collectors.toList());
+
+        // 3. 기피 재료 조회
+        List<String> excludedIngredients = getExcludedIngredients(memberId);
+
+        // 4. [MySQL] 1차 조회: 냉장고 재료로 요리 가능한 레시피
+        List<Recipe> cookableRecipes = recipeRepository.findCookableRecipes(ingredientNames, excludedIngredients);
+
+        // 5. [Hybrid Logic] 점수 계산 및 재정렬
+        Set<Long> scrapIds = getScrappedRecipeIds(memberId); // 선호도 점수용
+
+        List<Recipe> sortedRecipes = calculateHybridScoresAndSort(cookableRecipes, myIngredients, scrapIds, null);
+
+        // 6. [Double Check] 알레르기/기피 재료 최종 필터링 & DTO 변환
+        return sortedRecipes.stream()
+                .filter(recipe -> isSafeRecipe(recipe, excludedIngredients)) // 안전 필터
+                .map(recipe -> RecipeConverter.toRecipeDTO(recipe, scrapIds.contains(recipe.getId())))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<RecipeResponseDTO.RecipeDTO> recommendMissingRecipesHybrid(Long memberId) {
+        // 1. 멤버 검증
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
+
+        // 2. 내 냉장고 재료 조회
+        List<FridgeIngredient> myIngredients = fridgeIngredientRepository.findAllByMemberId(memberId);
+        if (myIngredients.isEmpty()) return Collections.emptyList();
+
+        List<String> ingredientNames = myIngredients.stream()
+                .map(FridgeIngredient::getName)
+                .collect(Collectors.toList());
+
+        // 3. 임베딩 생성
+        String queryText = String.join(" ", ingredientNames);
+        List<Float> queryVector = embeddingService.getEmbedding(queryText);
+
+        // 4. 기피 재료 및 Qdrant 필터
+        List<String> excludedIngredients = getExcludedIngredients(memberId);
+        Filter filter = createExclusionFilter(excludedIngredients);
+
+        try {
+            // 5. [Qdrant] 1차 조회: 후보군 100개 조회 (넉넉하게 가져와서 재정렬)
+            List<Points.ScoredPoint> searchResult = qdrantClient.searchAsync(
+                    Points.SearchPoints.newBuilder()
+                            .setCollectionName("recipes")
+                            .setFilter(filter)
+                            .addAllVector(queryVector)
+                            .setLimit(100) // Re-ranking을 위해 충분히 조회
+                            .build()
+            ).get();
+
+            // Qdrant 점수 맵핑 (ID -> Score)
+            Map<Long, Double> vectorScoreMap = searchResult.stream()
+                    .collect(Collectors.toMap(
+                            p -> p.getId().getNum(),
+                            p -> (double) p.getScore()
+                    ));
+
+            // 6. [MySQL] 상세 정보 조회
+            List<Recipe> candidates = recipeRepository.findAllById(vectorScoreMap.keySet());
+
+            // 7. [Hybrid Logic] 점수 계산 및 재정렬
+            Set<Long> scrapIds = getScrappedRecipeIds(memberId);
+            List<Recipe> sortedRecipes = calculateHybridScoresAndSort(candidates, myIngredients, scrapIds, vectorScoreMap);
+
+            // 8. [Double Check] 필터링 + 상위 20개 자르기 + DTO 변환
+            return sortedRecipes.stream()
+                    .filter(recipe -> isSafeRecipe(recipe, excludedIngredients)) // 안전 필터
+                    .limit(20) // ★ 요청하신 대로 20개 반환
+                    .map(recipe -> {
+                        // 부족한 재료 계산
+                        List<String> recipeIngredientNames = recipe.getIngredients().stream()
+                                .map(RecipeIngredient::getName)
+                                .collect(Collectors.toList());
+                        List<String> missing = new ArrayList<>(recipeIngredientNames);
+                        missing.removeAll(ingredientNames);
+
+                        return RecipeConverter.toRecipeDTO(recipe, missing, scrapIds.contains(recipe.getId()));
+                    })
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            log.error("Hybrid Search Failed: memberId={}", memberId, e);
+            throw new recipeException(ErrorStatus._RECIPE_SEARCH_FAIL);
+        }
+    }
+
     private Set<Long> getScrappedRecipeIds(Long memberId) {
         if (memberId == null) return new HashSet<>();
         return new HashSet<>(recipeScrapRepository.findRecipeIdsByMemberId(memberId));
+    }
+
+    @Getter
+    @AllArgsConstructor
+    private static class ScoredRecipe {
+        Recipe recipe;
+        double finalScore;
+    }
+
+    private List<Recipe> calculateHybridScoresAndSort(List<Recipe> recipes,
+                                                      List<FridgeIngredient> myIngredients,
+                                                      Set<Long> scrapIds,
+                                                      Map<Long, Double> vectorScoreMap) {
+        // 재료 이름 -> 만료일 매핑 (검색 속도 향상)
+        Map<String, LocalDate> expirationMap = myIngredients.stream()
+                .collect(Collectors.toMap(FridgeIngredient::getName, FridgeIngredient::getExpiryDate));
+
+        return recipes.stream()
+                .map(recipe -> {
+                    // A. 기본 점수 (Vector Score or Default 1.0)
+                    double vectorScore = (vectorScoreMap != null) ? vectorScoreMap.getOrDefault(recipe.getId(), 0.0) : 1.0;
+
+                    // B. 유통기한 점수 (0.0 ~ 1.0)
+                    double urgencyScore = calculateUrgencyScore(recipe, expirationMap);
+
+                    // C. 선호도 점수 (찜했으면 1.0, 아니면 0.0)
+                    double prefScore = scrapIds.contains(recipe.getId()) ? 1.0 : 0.0;
+
+                    // D. 최종 점수 합산
+                    double finalScore = (vectorScore * WEIGHT_VECTOR)
+                            + (urgencyScore * WEIGHT_URGENCY)
+                            + (prefScore * WEIGHT_PREF);
+
+                    return new ScoredRecipe(recipe, finalScore);
+                })
+                .sorted((o1, o2) -> Double.compare(o2.finalScore, o1.finalScore)) // 점수 내림차순 정렬
+                .map(ScoredRecipe::getRecipe)
+                .collect(Collectors.toList());
+    }
+
+    // 2. 유통기한 임박 점수 계산 로직
+    private double calculateUrgencyScore(Recipe recipe, Map<String, LocalDate> expirationMap) {
+        long minDaysLeft = 30; // 기본값
+        boolean hasMatch = false;
+
+        for (RecipeIngredient ri : recipe.getIngredients()) {
+            if (expirationMap.containsKey(ri.getName())) {
+                hasMatch = true;
+                long days = ChronoUnit.DAYS.between(LocalDate.now(), expirationMap.get(ri.getName()));
+                if (days < minDaysLeft) {
+                    minDaysLeft = days; // 가장 급한 재료 기준
+                }
+            }
+        }
+
+        if (!hasMatch) return 0.0;
+
+        // 점수 부여 정책
+        if (minDaysLeft <= 3) return 1.0;  // 3일 이내: 100점
+        if (minDaysLeft <= 7) return 0.5;  // 7일 이내: 50점
+        return 0.1;                        // 그 외: 10점
+    }
+
+    // 3. 안전 필터 (이중 체크)
+    private boolean isSafeRecipe(Recipe recipe, List<String> excludedIngredients) {
+        if (excludedIngredients == null || excludedIngredients.isEmpty()) return true;
+
+        // 레시피 재료 중 하나라도 기피 목록에 포함되면 false
+        return recipe.getIngredients().stream()
+                .noneMatch(ri -> excludedIngredients.contains(ri.getName()));
+    }
+
+    // 4. 기피 재료 목록 조회 헬퍼
+    private List<String> getExcludedIngredients(Long memberId) {
+        List<MemberPreference> preferences = memberPreferenceRepository.findAllByMemberId(memberId);
+        List<String> excluded = preferences.stream()
+                .map(MemberPreference::getIngredientName)
+                .collect(Collectors.toList());
+        if (excluded.isEmpty()) excluded.add(""); // IN절 에러 방지용 더미
+        return excluded;
+    }
+
+    // 5. Qdrant 제외 필터 생성 헬퍼
+    private Filter createExclusionFilter(List<String> excludedIngredients) {
+        Filter.Builder filterBuilder = Filter.newBuilder();
+        for (String excluded : excludedIngredients) {
+            if(excluded.isEmpty()) continue;
+            filterBuilder.addMustNot(Condition.newBuilder()
+                    .setField(FieldCondition.newBuilder()
+                            .setKey("ingredients")
+                            .setMatch(Match.newBuilder().setKeyword(excluded).build())
+                            .build())
+                    .build());
+        }
+        return filterBuilder.build();
     }
 }

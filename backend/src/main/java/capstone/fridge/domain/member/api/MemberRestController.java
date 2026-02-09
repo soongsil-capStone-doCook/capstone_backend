@@ -1,8 +1,6 @@
 package capstone.fridge.domain.member.api;
 
 import capstone.fridge.domain.member.application.MemberService;
-import capstone.fridge.domain.member.domain.entity.Member;
-import capstone.fridge.domain.member.domain.repository.MemberRepository;
 import capstone.fridge.domain.member.dto.MemberRequestDTO;
 import capstone.fridge.domain.member.dto.MemberResponseDTO;
 import capstone.fridge.global.common.response.BaseResponse;
@@ -14,8 +12,6 @@ import lombok.RequiredArgsConstructor;
 //import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/users")
@@ -71,6 +67,15 @@ public class MemberRestController {
     ) {
         MemberResponseDTO.OnboardingStatusDTO result = memberService.checkOnboardingStatus(memberId);
 
+        return BaseResponse.onSuccess(SuccessStatus.OK, result);
+    }
+
+    @PostMapping("/fcm-token")
+    public BaseResponse<String> updateFcmToken(
+            @AuthenticationPrincipal Long memberId,
+            @RequestBody MemberRequestDTO.FcmTokenDTO request
+    ) {
+        String result = memberService.updateFcmToken(memberId, request.getToken());
         return BaseResponse.onSuccess(SuccessStatus.OK, result);
     }
 }

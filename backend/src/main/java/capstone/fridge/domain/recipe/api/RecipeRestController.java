@@ -28,7 +28,7 @@ public class RecipeRestController {
     public BaseResponse<List<RecipeResponseDTO.RecipeDTO>> recommendRecipes(
             @AuthenticationPrincipal Long memberId
     ) {
-        List<RecipeResponseDTO.RecipeDTO> result = recipeService.recommendRecipes(memberId);
+        List<RecipeResponseDTO.RecipeDTO> result = recipeService.recommendRecipesHybrid(memberId);
         return BaseResponse.onSuccess(SuccessStatus.RECIPE, result);
     }
 
@@ -40,7 +40,7 @@ public class RecipeRestController {
     public BaseResponse<List<RecipeResponseDTO.RecipeDTO>> recommendMissingRecipes(
             @AuthenticationPrincipal Long memberId
     ) {
-        List<RecipeResponseDTO.RecipeDTO> result = recipeService.recommendMissingRecipes(memberId);
+        List<RecipeResponseDTO.RecipeDTO> result = recipeService.recommendMissingRecipesHybrid(memberId);
         return BaseResponse.onSuccess(SuccessStatus.RECIPE, result);
     }
 

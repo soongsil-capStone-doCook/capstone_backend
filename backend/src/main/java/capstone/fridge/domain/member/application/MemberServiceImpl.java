@@ -82,4 +82,17 @@ public class MemberServiceImpl implements MemberService {
         // 3. Converter를 사용하여 결과 반환
         return MemberConverter.toOnboardingStatusDTO(member, isOnboarded);
     }
+
+    @Override
+    @Transactional
+    public String updateFcmToken(Long memberId, String token) {
+        // 1. 회원 조회
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
+
+        // 2. 토큰 갱신 (Dirty Checking으로 자동 update 쿼리 실행)
+        member.updateFcmToken(token);
+
+        return "FCM 토큰이 성공적으로 저장되었습니다.";
+    }
 }

@@ -12,4 +12,6 @@ public interface MemberService {
     MemberResponseDTO.UserScrapsDTO getUserScraps(Long memberId);
 
     MemberResponseDTO.OnboardingStatusDTO checkOnboardingStatus(Long memberId);
+
+    String updateFcmToken(Long memberId, String token);
 }
