@@ -296,19 +296,29 @@ public class RecipeServiceImpl implements RecipeService {
         // 2. 검색어 임베딩 생성 ("매운 국물 요리" -> 벡터 변환)
         List<Float> queryVector = embeddingService.getEmbedding(request.getKeyword());
 
-        // 3. 필터 생성 (알레르기 필터)
+        // 3. 기피 재료 목록 추출 및 Qdrant 필터 생성
+        // ★ 수정된 부분: 조건에 따라 한 번만 초기화되도록 변경 (effectively final 만족)
+        final List<String> excludedIngredients;
         Filter.Builder filterBuilder = Filter.newBuilder();
 
         if (Boolean.TRUE.equals(request.getExcludeAllergy())) {
             List<MemberPreference> preferences = memberPreferenceRepository.findAllByMemberId(member.getId());
-            for (MemberPreference pref : preferences) {
+
+            excludedIngredients = preferences.stream()
+                    .map(MemberPreference::getIngredientName)
+                    .collect(Collectors.toList());
+
+            for (String excluded : excludedIngredients) {
                 filterBuilder.addMustNot(Condition.newBuilder()
                         .setField(FieldCondition.newBuilder()
                                 .setKey("ingredients")
-                                .setMatch(Match.newBuilder().setKeyword(pref.getIngredientName()).build())
+                                .setMatch(Match.newBuilder().setKeyword(excluded).build())
                                 .build())
                         .build());
             }
+        } else {
+            // 알레르기 제외 옵션이 꺼져있으면 빈 리스트 할당
+            excludedIngredients = Collections.emptyList();
         }
 
         Filter filter = filterBuilder.build();
@@ -325,7 +335,7 @@ public class RecipeServiceImpl implements RecipeService {
             ).get();
 
             List<Long> recipeIds = searchResult.stream()
-                    .map(point -> Long.parseLong(point.getId().getNum() + ""))
+                    .map(point -> point.getId().getNum())
                     .collect(Collectors.toList());
 
             if (recipeIds.isEmpty()) {
@@ -340,20 +350,19 @@ public class RecipeServiceImpl implements RecipeService {
                     .collect(Collectors.toMap(Recipe::getId, Function.identity()));
 
             Set<Long> scrapIds = getScrappedRecipeIds(memberId);
-
             List<String> userIngredients = fridgeIngredientRepository.findIngredientNamesByMemberId(member.getId());
 
+            // 6. [추가] 이중 필터링 및 DTO 변환
             return recipeIds.stream()
                     .filter(recipeMap::containsKey)
-                    .map(id -> {
-                        Recipe recipe = recipeMap.get(id);
-
+                    .map(recipeMap::get) // ID로 Recipe 객체 추출
+                    .filter(recipe -> isSafeRecipe(recipe, excludedIngredients))
+                    .map(recipe -> {
                         List<String> recipeIngredientNames = recipe.getIngredients().stream()
                                 .map(RecipeIngredient::getName)
                                 .collect(Collectors.toList());
 
                         List<String> missingIngredients = new ArrayList<>(recipeIngredientNames);
-
                         missingIngredients.removeAll(userIngredients);
 
                         return RecipeConverter.toRecipeDTO(recipe, missingIngredients, scrapIds.contains(recipe.getId()));
