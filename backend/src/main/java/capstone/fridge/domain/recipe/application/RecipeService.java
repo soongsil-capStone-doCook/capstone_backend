@@ -24,4 +24,6 @@ public interface RecipeService {
     List<RecipeResponseDTO.RecipeDTO> recommendRecipesHybrid(Long memberId);
 
     List<RecipeResponseDTO.RecipeDTO> recommendMissingRecipesHybrid(Long memberId);
+
+    List<RecipeResponseDTO.RecipeDTO> searchRecipeHybrid(Long memberId, RecipeRequestDTO.SearchRecipeDTO request);
 }

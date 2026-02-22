@@ -11,6 +11,7 @@ import capstone.fridge.domain.recipe.converter.RecipeConverter;
 import capstone.fridge.domain.recipe.domain.entity.Recipe;
 import capstone.fridge.domain.recipe.domain.entity.RecipeIngredient;
 import capstone.fridge.domain.recipe.domain.repository.RecipeRepository;
+import capstone.fridge.domain.recipe.dto.HybridEmbeddingResponse;
 import capstone.fridge.domain.recipe.dto.RecipeRequestDTO;
 import capstone.fridge.domain.recipe.dto.RecipeResponseDTO;
 import capstone.fridge.domain.recipe.exception.recipeException;
@@ -421,104 +422,126 @@ public class RecipeServiceImpl implements RecipeService {
         recipeScrapRepository.delete(scrap);
     }
 
+    /**
+     * 1. [냉장고 재료 맞춤 추천]
+     * 냉장고 재료를 '키워드'로 사용하여 하이브리드 벡터 검색을 수행하고 MySQL과 결합합니다.
+     */
     @Override
     public List<RecipeResponseDTO.RecipeDTO> recommendRecipesHybrid(Long memberId) {
-        // 1. 멤버 검증
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
 
-        // 2. 내 냉장고 재료(엔티티) 조회 - 유통기한 정보 포함
         List<FridgeIngredient> myIngredients = fridgeIngredientRepository.findAllByMemberId(memberId);
         if (myIngredients.isEmpty()) return Collections.emptyList();
 
-        // 이름 리스트 추출 (DB 조회용)
-        List<String> ingredientNames = myIngredients.stream()
-                .map(FridgeIngredient::getName)
-                .collect(Collectors.toList());
+        List<String> ingredientNames = myIngredients.stream().map(FridgeIngredient::getName).collect(Collectors.toList());
+        String queryText = String.join(" ", ingredientNames);
 
-        // 3. 기피 재료 조회
-        List<String> excludedIngredients = getExcludedIngredients(memberId);
-
-        // 4. [MySQL] 1차 조회: 냉장고 재료로 요리 가능한 레시피
-        List<Recipe> cookableRecipes = recipeRepository.findCookableRecipes(ingredientNames, excludedIngredients);
-
-        // 5. [Hybrid Logic] 점수 계산 및 재정렬
-        Set<Long> scrapIds = getScrappedRecipeIds(memberId); // 선호도 점수용
-
-        List<Recipe> sortedRecipes = calculateHybridScoresAndSort(cookableRecipes, myIngredients, scrapIds, null);
-
-        // 6. [Double Check] 알레르기/기피 재료 최종 필터링 & DTO 변환
-        return sortedRecipes.stream()
-                .filter(recipe -> isSafeRecipe(recipe, excludedIngredients)) // 안전 필터
-                .map(recipe -> RecipeConverter.toRecipeDTO(recipe, scrapIds.contains(recipe.getId())))
-                .collect(Collectors.toList());
+        // 하이브리드 검색 수행 (내부적으로 2번과 동일한 로직 사용 가능)
+        return getHybridSearchResults(memberId, queryText, ingredientNames, true);
     }
 
+    /**
+     * 2. [부족한 재료 포함 추천]
+     */
     @Override
     public List<RecipeResponseDTO.RecipeDTO> recommendMissingRecipesHybrid(Long memberId) {
-        // 1. 멤버 검증
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
 
-        // 2. 내 냉장고 재료 조회
         List<FridgeIngredient> myIngredients = fridgeIngredientRepository.findAllByMemberId(memberId);
         if (myIngredients.isEmpty()) return Collections.emptyList();
 
-        List<String> ingredientNames = myIngredients.stream()
-                .map(FridgeIngredient::getName)
-                .collect(Collectors.toList());
-
-        // 3. 임베딩 생성
+        List<String> ingredientNames = myIngredients.stream().map(FridgeIngredient::getName).collect(Collectors.toList());
         String queryText = String.join(" ", ingredientNames);
-        List<Float> queryVector = embeddingService.getEmbedding(queryText);
 
-        // 4. 기피 재료 및 Qdrant 필터
-        List<String> excludedIngredients = getExcludedIngredients(memberId);
-        Filter filter = createExclusionFilter(excludedIngredients);
+        return getHybridSearchResults(memberId, queryText, ingredientNames, false);
+    }
 
+    /**
+     * 3. [검색어 기반 하이브리드 검색]
+     */
+    @Override
+    public List<RecipeResponseDTO.RecipeDTO> searchRecipeHybrid(Long memberId, RecipeRequestDTO.SearchRecipeDTO request) {
+        if (request == null || request.getKeyword() == null || request.getKeyword().trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<String> userIngredients = fridgeIngredientRepository.findIngredientNamesByMemberId(memberId);
+        return getHybridSearchResults(memberId, request.getKeyword(), userIngredients, request.getExcludeAllergy());
+    }
+
+    /**
+     * [공통 하이브리드 검색 엔진 로직]
+     */
+    private List<RecipeResponseDTO.RecipeDTO> getHybridSearchResults(Long memberId, String queryText, List<String> userIngredients, Boolean excludeAllergy) {
         try {
-            // 5. [Qdrant] 1차 조회: 후보군 100개 조회 (넉넉하게 가져와서 재정렬)
-            List<Points.ScoredPoint> searchResult = qdrantClient.searchAsync(
-                    Points.SearchPoints.newBuilder()
-                            .setCollectionName("recipes")
-                            .setFilter(filter)
-                            .addAllVector(queryVector)
-                            .setLimit(100) // Re-ranking을 위해 충분히 조회
-                            .build()
-            ).get();
+            // A. 임베딩 서버에서 Dense/Sparse 벡터 획득 (수정된 DTO 적용)
+            HybridEmbeddingResponse emb = embeddingService.getHybridEmbedding(queryText);
 
-            // Qdrant 점수 맵핑 (ID -> Score)
-            Map<Long, Double> vectorScoreMap = searchResult.stream()
-                    .collect(Collectors.toMap(
-                            p -> p.getId().getNum(),
-                            p -> (double) p.getScore()
-                    ));
+            // B. 필터 생성 (기피 재료)
+            List<String> excludedIngredients = getExcludedIngredients(memberId);
+            Points.Filter filter = createExclusionFilter(excludedIngredients);
 
-            // 6. [MySQL] 상세 정보 조회
+            // C. Dense 검색 (의미 기반)
+            Points.SearchPoints denseSearch = Points.SearchPoints.newBuilder()
+                    .setCollectionName("recipes")
+                    .addAllVector(emb.getDense())
+                    .setVectorName("dense")
+                    .setFilter(filter)
+                    .setLimit(50)
+                    .setWithPayload(Points.WithPayloadSelector.newBuilder().setEnable(true).build())
+                    .build();
+
+            // D. Sparse 검색 (키워드 기반)
+            // Sparse는 인덱스와 값이 쌍으로 이루어진 객체이므로 addVector를 사용합니다.
+            Points.SparseVector sparseVector = Points.SparseVector.newBuilder()
+                    .addAllIndices(emb.getSparse().getIndices())
+                    .addAllValues(emb.getSparse().getValues())
+                    .build();
+
+            Points.Vector sparseVectorWrapper = Points.Vector.newBuilder()
+                    .setSparse(sparseVector)
+                    .build();
+
+            Points.SearchPoints sparseSearch = Points.SearchPoints.newBuilder()
+                    .setCollectionName("recipes")
+                    .addVector(sparseVectorWrapper) // SearchPoints의 vector는 repeated이므로 addVector 사용
+                    .setVectorName("sparse")
+                    .setFilter(filter)
+                    .setLimit(50)
+                    .setWithPayload(Points.WithPayloadSelector.newBuilder().setEnable(true).build())
+                    .build();
+
+            // E. 비동기 실행 및 RRF 병합
+            List<Points.ScoredPoint> denseResults = qdrantClient.searchAsync(denseSearch).get();
+            List<Points.ScoredPoint> sparseResults = qdrantClient.searchAsync(sparseSearch).get();
+
+            Map<Long, Double> vectorScoreMap = mergeRRF(denseResults, sparseResults);
+
+            // F. MySQL 상세 조회 및 하이브리드 정렬
             List<Recipe> candidates = recipeRepository.findAllById(vectorScoreMap.keySet());
-
-            // 7. [Hybrid Logic] 점수 계산 및 재정렬
             Set<Long> scrapIds = getScrappedRecipeIds(memberId);
+            List<FridgeIngredient> myIngredients = fridgeIngredientRepository.findAllByMemberId(memberId);
+
+            // 정렬 로직 (vectorScoreMap에 RRF 합산 점수가 담겨있음)
             List<Recipe> sortedRecipes = calculateHybridScoresAndSort(candidates, myIngredients, scrapIds, vectorScoreMap);
 
-            // 8. [Double Check] 필터링 + 상위 20개 자르기 + DTO 변환
+            // G. 최종 DTO 변환 및 반환
             return sortedRecipes.stream()
-                    .filter(recipe -> isSafeRecipe(recipe, excludedIngredients)) // 안전 필터
-                    .limit(20) // ★ 요청하신 대로 20개 반환
+                    .filter(recipe -> isSafeRecipe(recipe, excludedIngredients))
+                    .limit(30)
                     .map(recipe -> {
-                        // 부족한 재료 계산
                         List<String> recipeIngredientNames = recipe.getIngredients().stream()
-                                .map(RecipeIngredient::getName)
-                                .collect(Collectors.toList());
+                                .map(RecipeIngredient::getName).collect(Collectors.toList());
                         List<String> missing = new ArrayList<>(recipeIngredientNames);
-                        missing.removeAll(ingredientNames);
-
+                        missing.removeAll(userIngredients);
                         return RecipeConverter.toRecipeDTO(recipe, missing, scrapIds.contains(recipe.getId()));
                     })
                     .collect(Collectors.toList());
 
         } catch (Exception e) {
-            log.error("Hybrid Search Failed: memberId={}", memberId, e);
+            log.error("Hybrid Search Failed for query: {}", queryText, e);
             throw new recipeException(ErrorStatus._RECIPE_SEARCH_FAIL);
         }
     }
@@ -621,5 +644,26 @@ public class RecipeServiceImpl implements RecipeService {
                     .build());
         }
         return filterBuilder.build();
+    }
+
+    private Map<Long, Double> mergeRRF(List<Points.ScoredPoint> dense, List<Points.ScoredPoint> sparse) {
+        Map<Long, Double> rrfScores = new HashMap<>();
+        int k = 60; // RRF 상수 (일반적으로 60 사용)
+
+        // Dense 결과 순위 매기기
+        for (int i = 0; i < dense.size(); i++) {
+            long id = dense.get(i).getId().getNum();
+            double score = 1.0 / (k + i + 1);
+            rrfScores.put(id, rrfScores.getOrDefault(id, 0.0) + score);
+        }
+
+        // Sparse 결과 순위 매기기
+        for (int i = 0; i < sparse.size(); i++) {
+            long id = sparse.get(i).getId().getNum();
+            double score = 1.0 / (k + i + 1);
+            rrfScores.put(id, rrfScores.getOrDefault(id, 0.0) + score);
+        }
+
+        return rrfScores;
     }
 }

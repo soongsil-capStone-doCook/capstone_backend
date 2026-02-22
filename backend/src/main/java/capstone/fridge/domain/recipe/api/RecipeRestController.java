@@ -78,7 +78,7 @@ public class RecipeRestController {
             @AuthenticationPrincipal Long memberId,
             @ModelAttribute RecipeRequestDTO.SearchRecipeDTO request
     ) {
-        List<RecipeResponseDTO.RecipeDTO> result = recipeService.searchRecipe(memberId, request);
+        List<RecipeResponseDTO.RecipeDTO> result = recipeService.searchRecipeHybrid(memberId, request);
         return BaseResponse.onSuccess(SuccessStatus.RECIPE_FIND, result);
     }
 
