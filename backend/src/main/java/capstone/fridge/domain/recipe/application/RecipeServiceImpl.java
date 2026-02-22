@@ -53,9 +53,8 @@ public class RecipeServiceImpl implements RecipeService {
     private final MemberPreferenceRepository memberPreferenceRepository;
     private final RecipeScrapRepository recipeScrapRepository;
 
-    private static final double WEIGHT_VECTOR = 0.6;
-    private static final double WEIGHT_URGENCY = 0.3;
-    private static final double WEIGHT_PREF = 0.1;
+    private static final double WEIGHT_VECTOR = 0.8;
+    private static final double WEIGHT_PREF = 0.2;
 
     @Override
     public List<RecipeResponseDTO.RecipeDTO> recommendRecipes(Long memberId) {
@@ -422,10 +421,7 @@ public class RecipeServiceImpl implements RecipeService {
         recipeScrapRepository.delete(scrap);
     }
 
-    /**
-     * 1. [냉장고 재료 맞춤 추천]
-     * 냉장고 재료를 '키워드'로 사용하여 하이브리드 벡터 검색을 수행하고 MySQL과 결합합니다.
-     */
+    // 1. [냉장고 재료 맞춤 추천] 냉장고 재료를 '키워드'로 사용하여 하이브리드 벡터 검색을 수행하고 MySQL과 결합합니다.
     @Override
     public List<RecipeResponseDTO.RecipeDTO> recommendRecipesHybrid(Long memberId) {
         Member member = memberRepository.findById(memberId)
@@ -441,9 +437,8 @@ public class RecipeServiceImpl implements RecipeService {
         return getHybridSearchResults(memberId, queryText, ingredientNames, true);
     }
 
-    /**
-     * 2. [부족한 재료 포함 추천]
-     */
+
+    // 2. [부족한 재료 포함 추천]
     @Override
     public List<RecipeResponseDTO.RecipeDTO> recommendMissingRecipesHybrid(Long memberId) {
         Member member = memberRepository.findById(memberId)
@@ -458,9 +453,8 @@ public class RecipeServiceImpl implements RecipeService {
         return getHybridSearchResults(memberId, queryText, ingredientNames, false);
     }
 
-    /**
-     * 3. [검색어 기반 하이브리드 검색]
-     */
+
+     //3. [검색어 기반 하이브리드 검색]
     @Override
     public List<RecipeResponseDTO.RecipeDTO> searchRecipeHybrid(Long memberId, RecipeRequestDTO.SearchRecipeDTO request) {
         if (request == null || request.getKeyword() == null || request.getKeyword().trim().isEmpty()) {
@@ -471,63 +465,52 @@ public class RecipeServiceImpl implements RecipeService {
         return getHybridSearchResults(memberId, request.getKeyword(), userIngredients, request.getExcludeAllergy());
     }
 
-    /**
-     * [공통 하이브리드 검색 엔진 로직]
-     */
+
+    // [공통 하이브리드 검색 엔진 로직]
     private List<RecipeResponseDTO.RecipeDTO> getHybridSearchResults(Long memberId, String queryText, List<String> userIngredients, Boolean excludeAllergy) {
         try {
-            // A. 임베딩 서버에서 Dense/Sparse 벡터 획득 (수정된 DTO 적용)
             HybridEmbeddingResponse emb = embeddingService.getHybridEmbedding(queryText);
 
-            // B. 필터 생성 (기피 재료)
             List<String> excludedIngredients = getExcludedIngredients(memberId);
             Points.Filter filter = createExclusionFilter(excludedIngredients);
 
-            // C. Dense 검색 (의미 기반)
+            // 1. Dense 검색 (의미 기반)
             Points.SearchPoints denseSearch = Points.SearchPoints.newBuilder()
                     .setCollectionName("recipes")
-                    .addAllVector(emb.getDense())
+                    .addAllVector(emb.getDense()) // Dense는 값만 있으므로 통째로 넣음
                     .setVectorName("dense")
                     .setFilter(filter)
                     .setLimit(50)
                     .setWithPayload(Points.WithPayloadSelector.newBuilder().setEnable(true).build())
                     .build();
 
-            // D. Sparse 검색 (키워드 기반)
-            // Sparse는 인덱스와 값이 쌍으로 이루어진 객체이므로 addVector를 사용합니다.
-            Points.SparseVector sparseVector = Points.SparseVector.newBuilder()
-                    .addAllIndices(emb.getSparse().getIndices())
-                    .addAllValues(emb.getSparse().getValues())
-                    .build();
-
-            Points.Vector sparseVectorWrapper = Points.Vector.newBuilder()
-                    .setSparse(sparseVector)
+            // 2. Sparse 검색 (키워드 기반)
+            Points.SparseIndices sparseIndices = Points.SparseIndices.newBuilder()
+                    .addAllData(emb.getSparse().getIndices()) // 인덱스 배열 생성 완료
                     .build();
 
             Points.SearchPoints sparseSearch = Points.SearchPoints.newBuilder()
                     .setCollectionName("recipes")
-                    .addVector(sparseVectorWrapper) // SearchPoints의 vector는 repeated이므로 addVector 사용
                     .setVectorName("sparse")
+                    .addAllVector(emb.getSparse().getValues()) // Sparse의 '값(Values)'은 기존 vector 공간에 넣습니다!
+                    .setSparseIndices(sparseIndices)           // Sparse의 '인덱스(Indices)'는 전용 공간에 따로 넣습니다!
                     .setFilter(filter)
                     .setLimit(50)
                     .setWithPayload(Points.WithPayloadSelector.newBuilder().setEnable(true).build())
                     .build();
 
-            // E. 비동기 실행 및 RRF 병합
+            // 3. 비동기 검색 실행
             List<Points.ScoredPoint> denseResults = qdrantClient.searchAsync(denseSearch).get();
             List<Points.ScoredPoint> sparseResults = qdrantClient.searchAsync(sparseSearch).get();
 
             Map<Long, Double> vectorScoreMap = mergeRRF(denseResults, sparseResults);
 
-            // F. MySQL 상세 조회 및 하이브리드 정렬
+            // 4. MySQL 상세 조회 및 정렬
             List<Recipe> candidates = recipeRepository.findAllById(vectorScoreMap.keySet());
             Set<Long> scrapIds = getScrappedRecipeIds(memberId);
-            List<FridgeIngredient> myIngredients = fridgeIngredientRepository.findAllByMemberId(memberId);
 
-            // 정렬 로직 (vectorScoreMap에 RRF 합산 점수가 담겨있음)
-            List<Recipe> sortedRecipes = calculateHybridScoresAndSort(candidates, myIngredients, scrapIds, vectorScoreMap);
+            List<Recipe> sortedRecipes = calculateHybridScoresAndSort(candidates, scrapIds, vectorScoreMap);
 
-            // G. 최종 DTO 변환 및 반환
             return sortedRecipes.stream()
                     .filter(recipe -> isSafeRecipe(recipe, excludedIngredients))
                     .limit(30)
@@ -541,7 +524,7 @@ public class RecipeServiceImpl implements RecipeService {
                     .collect(Collectors.toList());
 
         } catch (Exception e) {
-            log.error("Hybrid Search Failed for query: {}", queryText, e);
+            log.error("Hybrid Search Failed", e);
             throw new recipeException(ErrorStatus._RECIPE_SEARCH_FAIL);
         }
     }
@@ -559,32 +542,20 @@ public class RecipeServiceImpl implements RecipeService {
     }
 
     private List<Recipe> calculateHybridScoresAndSort(List<Recipe> recipes,
-                                                      List<FridgeIngredient> myIngredients,
                                                       Set<Long> scrapIds,
                                                       Map<Long, Double> vectorScoreMap) {
-        // 재료 이름 -> 만료일 매핑 (검색 속도 향상)
-        Map<String, LocalDate> expirationMap = myIngredients.stream()
-                .collect(Collectors.toMap(FridgeIngredient::getName, FridgeIngredient::getExpiryDate));
+        final double WEIGHT_VECTOR = 0.8;
+        final double WEIGHT_PREF = 0.2;
 
         return recipes.stream()
                 .map(recipe -> {
-                    // A. 기본 점수 (Vector Score or Default 1.0)
-                    double vectorScore = (vectorScoreMap != null) ? vectorScoreMap.getOrDefault(recipe.getId(), 0.0) : 1.0;
-
-                    // B. 유통기한 점수 (0.0 ~ 1.0)
-                    double urgencyScore = calculateUrgencyScore(recipe, expirationMap);
-
-                    // C. 선호도 점수 (찜했으면 1.0, 아니면 0.0)
+                    double vectorScore = vectorScoreMap.getOrDefault(recipe.getId(), 0.0) * 100;
                     double prefScore = scrapIds.contains(recipe.getId()) ? 1.0 : 0.0;
-
-                    // D. 최종 점수 합산
-                    double finalScore = (vectorScore * WEIGHT_VECTOR)
-                            + (urgencyScore * WEIGHT_URGENCY)
-                            + (prefScore * WEIGHT_PREF);
+                    double finalScore = (vectorScore * WEIGHT_VECTOR) + (prefScore * WEIGHT_PREF);
 
                     return new ScoredRecipe(recipe, finalScore);
                 })
-                .sorted((o1, o2) -> Double.compare(o2.finalScore, o1.finalScore)) // 점수 내림차순 정렬
+                .sorted((o1, o2) -> Double.compare(o2.getFinalScore(), o1.getFinalScore()))
                 .map(ScoredRecipe::getRecipe)
                 .collect(Collectors.toList());
     }

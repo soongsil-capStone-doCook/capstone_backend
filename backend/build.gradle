@@ -66,3 +66,10 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+configurations.all {
+	resolutionStrategy {
+		force "io.qdrant:client:1.12.0"
+		force "io.qdrant:client-grpc:1.12.0"
+	}
+}
