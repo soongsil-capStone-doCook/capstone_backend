@@ -457,63 +457,95 @@ public class RecipeServiceImpl implements RecipeService {
      //3. [검색어 기반 하이브리드 검색]
     @Override
     public List<RecipeResponseDTO.RecipeDTO> searchRecipeHybrid(Long memberId, RecipeRequestDTO.SearchRecipeDTO request) {
+        return searchRecipeHybrid(memberId, request, 30);
+    }
+
+    @Override
+    public List<RecipeResponseDTO.RecipeDTO> searchRecipeHybrid(Long memberId, RecipeRequestDTO.SearchRecipeDTO request, int topK) {
         if (request == null || request.getKeyword() == null || request.getKeyword().trim().isEmpty()) {
             return Collections.emptyList();
         }
+        List<String> userIngredients = memberId != null
+                ? fridgeIngredientRepository.findIngredientNamesByMemberId(memberId)
+                : List.of();
+        return getHybridSearchResults(memberId, request.getKeyword(), userIngredients, request.getExcludeAllergy(), topK);
+    }
 
-        List<String> userIngredients = fridgeIngredientRepository.findIngredientNamesByMemberId(memberId);
-        return getHybridSearchResults(memberId, request.getKeyword(), userIngredients, request.getExcludeAllergy());
+    @Override
+    public List<RecipeResponseDTO.RecipeDTO> searchRecipeDenseOnly(Long memberId, String queryText, int topK) {
+        return getDenseOnlySearchResults(memberId, queryText, topK);
     }
 
 
-    // [공통 하이브리드 검색 엔진 로직]
+    // [공통 하이브리드 검색 엔진 로직] — 단계별 로그로 어디서 실패하는지 확인
     private List<RecipeResponseDTO.RecipeDTO> getHybridSearchResults(Long memberId, String queryText, List<String> userIngredients, Boolean excludeAllergy) {
+        return getHybridSearchResults(memberId, queryText, userIngredients, excludeAllergy, 30);
+    }
+
+    private List<RecipeResponseDTO.RecipeDTO> getHybridSearchResults(Long memberId, String queryText, List<String> userIngredients, Boolean excludeAllergy, int topK) {
+        String step = "";
         try {
+            step = "1.getHybridEmbedding";
+            log.debug("[HybridSearch] step={}", step);
             HybridEmbeddingResponse emb = embeddingService.getHybridEmbedding(queryText);
+            int sparseSize = (emb.getSparse() == null) ? 0 : (emb.getSparse().getIndices() == null ? 0 : emb.getSparse().getIndices().size());
+            log.warn("[HybridSearch] 임베딩 응답 sparse 개수={} (0이면 임베딩서버가 sparse 안 보냄)", sparseSize);
 
+            step = "2.getExcludedIngredients_and_filter";
+            log.debug("[HybridSearch] step={}", step);
             List<String> excludedIngredients = getExcludedIngredients(memberId);
-            Points.Filter filter = createExclusionFilter(excludedIngredients);
+            // Qdrant에 "ingredients" payload keyword 인덱스가 없으면 필터 사용 시 INVALID_ARGUMENT → 빈 필터로 검색 후 Java에서 isSafeRecipe로 기피 재료 제외
+            Points.Filter filter = Points.Filter.newBuilder().build();
 
-            // 1. Dense 검색 (의미 기반)
+            step = "3.build_denseSearch";
+            log.debug("[HybridSearch] step={}", step);
             Points.SearchPoints denseSearch = Points.SearchPoints.newBuilder()
                     .setCollectionName("recipes")
-                    .addAllVector(emb.getDense()) // Dense는 값만 있으므로 통째로 넣음
+                    .addAllVector(emb.getDense())
                     .setVectorName("dense")
                     .setFilter(filter)
                     .setLimit(50)
                     .setWithPayload(Points.WithPayloadSelector.newBuilder().setEnable(true).build())
                     .build();
 
-            // 2. Sparse 검색 (키워드 기반)
+            step = "4.build_sparseSearch";
+            log.debug("[HybridSearch] step={}", step);
             Points.SparseIndices sparseIndices = Points.SparseIndices.newBuilder()
-                    .addAllData(emb.getSparse().getIndices()) // 인덱스 배열 생성 완료
+                    .addAllData(emb.getSparse().getIndices())
                     .build();
 
             Points.SearchPoints sparseSearch = Points.SearchPoints.newBuilder()
                     .setCollectionName("recipes")
                     .setVectorName("sparse")
-                    .addAllVector(emb.getSparse().getValues()) // Sparse의 '값(Values)'은 기존 vector 공간에 넣습니다!
-                    .setSparseIndices(sparseIndices)           // Sparse의 '인덱스(Indices)'는 전용 공간에 따로 넣습니다!
+                    .addAllVector(emb.getSparse().getValues())
+                    .setSparseIndices(sparseIndices)
                     .setFilter(filter)
                     .setLimit(50)
                     .setWithPayload(Points.WithPayloadSelector.newBuilder().setEnable(true).build())
                     .build();
 
-            // 3. 비동기 검색 실행
+            step = "5.qdrant_dense_search";
+            log.debug("[HybridSearch] step={}", step);
             List<Points.ScoredPoint> denseResults = qdrantClient.searchAsync(denseSearch).get();
+
+            step = "6.qdrant_sparse_search";
+            log.debug("[HybridSearch] step={}", step);
             List<Points.ScoredPoint> sparseResults = qdrantClient.searchAsync(sparseSearch).get();
+            log.warn("[HybridSearch] denseResults={} sparseResults={} (0이면 sparse 미동작)", denseResults.size(), sparseResults.size());
 
+            step = "7.mergeRRF_and_mysql";
+            log.debug("[HybridSearch] step={}", step);
             Map<Long, Double> vectorScoreMap = mergeRRF(denseResults, sparseResults);
-
-            // 4. MySQL 상세 조회 및 정렬
             List<Recipe> candidates = recipeRepository.findAllById(vectorScoreMap.keySet());
             Set<Long> scrapIds = getScrappedRecipeIds(memberId);
 
+            step = "8.calculateHybridScoresAndSort_and_convert";
+            log.debug("[HybridSearch] step={}", step);
             List<Recipe> sortedRecipes = calculateHybridScoresAndSort(candidates, scrapIds, vectorScoreMap);
 
             return sortedRecipes.stream()
                     .filter(recipe -> isSafeRecipe(recipe, excludedIngredients))
-                    .limit(30)
+                    .limit(topK)
                     .map(recipe -> {
                         List<String> recipeIngredientNames = recipe.getIngredients().stream()
                                 .map(RecipeIngredient::getName).collect(Collectors.toList());
@@ -524,7 +556,58 @@ public class RecipeServiceImpl implements RecipeService {
                     .collect(Collectors.toList());
 
         } catch (Exception e) {
-            log.error("Hybrid Search Failed", e);
+            log.error("Hybrid Search Failed at step [{}] | exception={} | message={}", step, e.getClass().getSimpleName(), e.getMessage(), e);
+            throw new recipeException(ErrorStatus._RECIPE_SEARCH_FAIL);
+        }
+    }
+
+    /** 실험용: Dense 벡터만 사용한 검색 (Ablation Baseline) */
+    private List<RecipeResponseDTO.RecipeDTO> getDenseOnlySearchResults(Long memberId, String queryText, int topK) {
+        try {
+            HybridEmbeddingResponse emb = embeddingService.getHybridEmbedding(queryText);
+            Points.Filter filter = Points.Filter.newBuilder().build();
+            Points.SearchPoints denseSearch = Points.SearchPoints.newBuilder()
+                    .setCollectionName("recipes")
+                    .addAllVector(emb.getDense())
+                    .setVectorName("dense")
+                    .setFilter(filter)
+                    .setLimit(Math.max(topK, 50))
+                    .setWithPayload(Points.WithPayloadSelector.newBuilder().setEnable(true).build())
+                    .build();
+
+            List<Points.ScoredPoint> denseResults = qdrantClient.searchAsync(denseSearch).get();
+            List<Long> orderedIds = denseResults.stream()
+                    .map(p -> p.getId().getNum())
+                    .limit(topK)
+                    .toList();
+            if (orderedIds.isEmpty()) return List.of();
+
+            List<Recipe> candidates = recipeRepository.findAllById(orderedIds);
+            Map<Long, Integer> rankMap = new HashMap<>();
+            for (int i = 0; i < orderedIds.size(); i++) rankMap.put(orderedIds.get(i), i);
+            List<Recipe> sortedRecipes = candidates.stream()
+                    .sorted(Comparator.comparingInt(r -> rankMap.getOrDefault(r.getId(), Integer.MAX_VALUE)))
+                    .toList();
+
+            List<String> excludedIngredients = getExcludedIngredients(memberId);
+            Set<Long> scrapIds = getScrappedRecipeIds(memberId);
+            List<String> userIngredients = memberId != null
+                    ? fridgeIngredientRepository.findIngredientNamesByMemberId(memberId)
+                    : List.of();
+
+            return sortedRecipes.stream()
+                    .filter(recipe -> isSafeRecipe(recipe, excludedIngredients))
+                    .limit(topK)
+                    .map(recipe -> {
+                        List<String> recipeIngredientNames = recipe.getIngredients().stream()
+                                .map(RecipeIngredient::getName).collect(Collectors.toList());
+                        List<String> missing = new ArrayList<>(recipeIngredientNames);
+                        missing.removeAll(userIngredients);
+                        return RecipeConverter.toRecipeDTO(recipe, missing, scrapIds.contains(recipe.getId()));
+                    })
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Dense-only search failed", e);
             throw new recipeException(ErrorStatus._RECIPE_SEARCH_FAIL);
         }
     }
@@ -621,20 +704,16 @@ public class RecipeServiceImpl implements RecipeService {
         Map<Long, Double> rrfScores = new HashMap<>();
         int k = 60; // RRF 상수 (일반적으로 60 사용)
 
-        // Dense 결과 순위 매기기
         for (int i = 0; i < dense.size(); i++) {
             long id = dense.get(i).getId().getNum();
             double score = 1.0 / (k + i + 1);
             rrfScores.put(id, rrfScores.getOrDefault(id, 0.0) + score);
         }
-
-        // Sparse 결과 순위 매기기
         for (int i = 0; i < sparse.size(); i++) {
             long id = sparse.get(i).getId().getNum();
             double score = 1.0 / (k + i + 1);
             rrfScores.put(id, rrfScores.getOrDefault(id, 0.0) + score);
         }
-
         return rrfScores;
     }
 }

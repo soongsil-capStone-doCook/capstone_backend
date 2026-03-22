@@ -22,7 +22,6 @@ public class EmbeddingService {
     public HybridEmbeddingResponse getHybridEmbedding(String text) {
         Map<String, String> request = Map.of("text", text);
 
-        // Map 대신 우리가 만든 DTO로 바로 받습니다. 훨씬 안전합니다!
         HybridEmbeddingResponse response = restTemplate.postForObject(embeddingServerUrl, request, HybridEmbeddingResponse.class);
 
         if (response == null || response.getDense() == null || response.getSparse() == null) {

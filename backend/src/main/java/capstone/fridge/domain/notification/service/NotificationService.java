@@ -12,12 +12,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Service
+/*@Service
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationService {
 
-    private final FirebaseMessaging firebaseMessaging;
+    //private final FirebaseMessaging firebaseMessaging;
     private final MemberRepository memberRepository;
 
     @Transactional(readOnly = true)
@@ -56,4 +56,4 @@ public class NotificationService {
             // 필요 시 예외 처리 또는 재시도 로직 추가
         }
     }
-}
+}*/

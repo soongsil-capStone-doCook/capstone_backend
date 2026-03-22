@@ -12,7 +12,17 @@ from openai import OpenAI
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
 MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "5"))
 
-client = OpenAI()  # reads OPENAI_API_KEY automatically
+_client = None
+
+def _get_openai_client():
+    """OPENAI_API_KEY 있을 때만 클라이언트 반환 (없으면 None). import 시점에는 생성 안 함."""
+    global _client
+    if _client is not None:
+        return _client
+    if os.getenv("OPENAI_API_KEY"):
+        _client = OpenAI()
+        return _client
+    return None
 
 
 # ---------- Enums (must match your Spring enum names) ----------
@@ -258,8 +268,11 @@ def place_items(items: List[InputItem]) -> PlaceResult:
     }
 
     last_err: Optional[Exception] = None
+    client = _get_openai_client()
 
     for attempt in range(MAX_RETRIES):
+        if client is None:
+            break
         try:
             resp = client.chat.completions.create(
                 model=MODEL,

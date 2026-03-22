@@ -1,5 +1,7 @@
 package capstone.fridge.domain.recipe.api;
 
+import capstone.fridge.domain.recipe.agent.dto.AgentDtos;
+import capstone.fridge.domain.recipe.agent.RecipeAgentService;
 import capstone.fridge.domain.recipe.application.RecipeService;
 import capstone.fridge.domain.recipe.dto.RecipeRequestDTO;
 import capstone.fridge.domain.recipe.dto.RecipeResponseDTO;
@@ -19,6 +21,7 @@ import java.util.List;
 public class RecipeRestController {
 
     private final RecipeService recipeService;
+    private final RecipeAgentService recipeAgentService;
 
     @GetMapping("/recommend/fridge")
     @Operation(summary = "맞춤 레시피 추천 API", description = "사용자 냉장고의 재료를 기반으로 만들 수 있는 레시피를 추천")
@@ -106,5 +109,20 @@ public class RecipeRestController {
     ) {
         recipeService.deleteScrapRecipe(recipeId, memberId);
         return BaseResponse.onSuccess(SuccessStatus.RECIPE_DELETE_SCRAP, null);
+    }
+
+    @PostMapping("/agent/ask")
+    @Operation(summary = "Agentic RAG 레시피 질의 API", description = "Query Rewriting → Hybrid Retrieval → (선택) Re-ranking → 최종 답변 생성")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK")
+    })
+    public BaseResponse<AgentDtos.AgentAskRes> agentAsk(
+            @AuthenticationPrincipal Long memberId,
+            @RequestBody AgentDtos.AgentAskReq req
+    ) {
+        // 시큐리티 비활성화 시 memberId가 null → 테스트용 기본 1L 사용 (DB에 member id=1 존재해야 함)
+        Long effectiveMemberId = memberId != null ? memberId : 1L;
+        AgentDtos.AgentAskRes result = recipeAgentService.ask(effectiveMemberId, req.getQuery());
+        return BaseResponse.onSuccess(SuccessStatus.RECIPE, result);
     }
 }

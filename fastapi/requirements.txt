@@ -7,3 +7,6 @@ google-cloud-vision==3.7.4
 
 openai==1.58.1
 python-dotenv==1.0.1
+
+# Cross-Encoder Re-ranking (기본: MiniLM)
+sentence-transformers>=2.2.0

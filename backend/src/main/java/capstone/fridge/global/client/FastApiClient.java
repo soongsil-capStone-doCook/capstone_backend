@@ -2,6 +2,7 @@ package capstone.fridge.global.client;
 
 import capstone.fridge.global.client.dto.FastApiOcrDtos;
 import capstone.fridge.global.client.dto.FastApiPlaceDtos;
+import capstone.fridge.global.client.dto.FastApiRerankDtos;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
@@ -81,5 +82,19 @@ public class FastApiClient {
                 .body(req)
                 .retrieve()
                 .body(FastApiPlaceDtos.PlaceRes.class);
+    }
+
+    /**
+     * Cross-Encoder Re-ranking: query와 documents 유사도로 순서 재정렬.
+     * FastAPI POST /rerank → { "ranked_ids": [ ... ] }
+     */
+    public FastApiRerankDtos.RerankRes rerank(FastApiRerankDtos.RerankReq req) {
+        return restClient.post()
+                .uri("/rerank")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(req)
+                .retrieve()
+                .body(FastApiRerankDtos.RerankRes.class);
     }
 }

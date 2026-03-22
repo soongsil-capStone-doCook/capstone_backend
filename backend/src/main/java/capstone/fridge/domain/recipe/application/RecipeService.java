@@ -26,4 +26,10 @@ public interface RecipeService {
     List<RecipeResponseDTO.RecipeDTO> recommendMissingRecipesHybrid(Long memberId);
 
     List<RecipeResponseDTO.RecipeDTO> searchRecipeHybrid(Long memberId, RecipeRequestDTO.SearchRecipeDTO request);
+
+    /** 실험용: 상위 topK개만 반환 */
+    List<RecipeResponseDTO.RecipeDTO> searchRecipeHybrid(Long memberId, RecipeRequestDTO.SearchRecipeDTO request, int topK);
+
+    /** 실험용: Dense만 사용한 검색 (Ablation Baseline) */
+    List<RecipeResponseDTO.RecipeDTO> searchRecipeDenseOnly(Long memberId, String queryText, int topK);
 }

@@ -3,7 +3,7 @@ package capstone.fridge.domain.notification.scheduler;
 import capstone.fridge.domain.fridge.domain.entity.FridgeIngredient;
 import capstone.fridge.domain.fridge.domain.repository.FridgeIngredientRepository;
 import capstone.fridge.domain.member.domain.entity.Member;
-import capstone.fridge.domain.notification.service.NotificationService;
+//import capstone.fridge.domain.notification.service.NotificationService;
 import capstone.fridge.domain.recipe.application.RecipeService;
 import capstone.fridge.domain.recipe.dto.RecipeResponseDTO;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 public class NotificationScheduler {
 
     private final FridgeIngredientRepository fridgeIngredientRepository;
-    private final NotificationService notificationService;
+    //private final NotificationService notificationService;
     private final RecipeService recipeService; // 우리가 만든 하이브리드 로직 사용
 
     // 매일 오전 9시에 실행 (초 분 시 일 월 요일)
@@ -82,7 +82,7 @@ public class NotificationScheduler {
             }
 
             // 알림 발송
-            notificationService.sendPush(member.getId(), title, body);
+            //notificationService.sendPush(member.getId(), title, body);
 
         } catch (Exception e) {
             log.error("알림 발송 중 오류 발생: MemberId={}", member.getId(), e);

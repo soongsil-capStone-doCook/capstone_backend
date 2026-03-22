@@ -18,7 +18,7 @@ public class QdrantConfig {
     @Bean
     public QdrantClient qdrantClient() {
 
-        QdrantGrpcClient.Builder grpcClientBuilder = QdrantGrpcClient.newBuilder(qdrantUrl, 6334, false); // true = SSL(HTTPS) 사용
+        QdrantGrpcClient.Builder grpcClientBuilder = QdrantGrpcClient.newBuilder(qdrantUrl, 6334, true); // true = SSL(HTTPS) 사용
 
         if (apiKey != null && !apiKey.isBlank()) {
             grpcClientBuilder.withApiKey(apiKey);

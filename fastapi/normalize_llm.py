@@ -5,7 +5,6 @@ from pydantic import BaseModel, Field, ValidationError
 from openai import OpenAI
 
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 ALLOWED_CATS = ["채소","과일","육류","해산물","유제품","소스","양념","음료","냉동식품","기타"]
@@ -23,10 +22,16 @@ class LlmNormRes(BaseModel):
 
 def llm_normalize_batch(raw_names: List[str]) -> Dict[str, Tuple[str, str]]:
     """
-    raw -> (name, category)
+    raw -> (name, category). OPENAI_API_KEY 없으면 LLM 스킵하고 빈 dict 반환.
     """
     if not raw_names:
         return {}
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key or not api_key.strip():
+        return {}
+
+    client = OpenAI(api_key=api_key)
 
     # 입력 크기 과하면 쪼개도 됨(데모면 보통 필요없음)
     prompt = f"""

@@ -13,11 +13,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-@Configuration
+//@Configuration
 @Slf4j
 public class FCMConfig {
 
-    @Bean
+    //@Bean
     public FirebaseMessaging firebaseMessaging() throws IOException {
         ClassPathResource resource = new ClassPathResource("firebase/serviceAccountKey.json");
 
