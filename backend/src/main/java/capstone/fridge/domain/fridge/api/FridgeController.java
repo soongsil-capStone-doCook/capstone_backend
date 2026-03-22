@@ -18,7 +18,7 @@ public class FridgeController {
 
     private final FridgeService fridgeService;
 
-    @PatchMapping
+    @GetMapping
     public ResponseEntity<FridgeDtos.ListRes> list(@AuthenticationPrincipal Long memberId) {
         return ResponseEntity.ok(fridgeService.list(memberId));
     }
