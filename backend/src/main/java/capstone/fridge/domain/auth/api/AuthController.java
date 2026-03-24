@@ -14,7 +14,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login/kakao")
-    public ResponseEntity<AuthDtos.TokenRes> kakaoLogin(@RequestBody AuthDtos.KakaoLoginReq req) {
+    public ResponseEntity<AuthDtos.LoginRes> kakaoLogin(@RequestBody AuthDtos.KakaoLoginReq req) {
         return ResponseEntity.ok(authService.loginKakao(req));
     }
 

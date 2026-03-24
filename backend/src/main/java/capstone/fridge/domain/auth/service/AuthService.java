@@ -25,9 +25,8 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtTokenProvider jwtTokenProvider;
 
-    public AuthDtos.TokenRes loginKakao(AuthDtos.KakaoLoginReq req) {
-        var token = kakaoClient.getToken(req.code(), req.redirectUri());
-        var me = kakaoClient.getUser(token.accessToken());
+    public AuthDtos.LoginRes loginKakao(AuthDtos.KakaoLoginReq req) {
+        var me = kakaoClient.getUser(req.accessToken());
 
         String kakaoId = String.valueOf(me.id());
         String nickname = (me.properties() != null && me.properties().nickname() != null)
@@ -60,7 +59,9 @@ public class AuthService {
         rt.rotate(refreshJwt, refreshExp);
         refreshTokenRepository.save(rt);
 
-        return new AuthDtos.TokenRes(accessJwt, refreshJwt, member.getId(), member.getNickname());
+        AuthDtos.TokenRes tokenRes = new AuthDtos.TokenRes(accessJwt, refreshJwt, member.getId(), member.getNickname());
+        AuthDtos.User user = new AuthDtos.User(member.getId(), member.getNickname());
+        return new AuthDtos.LoginRes(user, tokenRes.accessToken());
     }
 
     public AuthDtos.TokenRes refresh(AuthDtos.RefreshReq req) {

@@ -3,8 +3,17 @@ package capstone.fridge.domain.auth.api.dto;
 public class AuthDtos {
 
     public record KakaoLoginReq(
-            String code,
-            String redirectUri
+            String accessToken
+    ) {}
+
+    public record LoginRes(
+            User user,
+            String token
+    ) {}
+
+    public record User(
+            Long memberId,
+            String nickname
     ) {}
 
     public record TokenRes(
