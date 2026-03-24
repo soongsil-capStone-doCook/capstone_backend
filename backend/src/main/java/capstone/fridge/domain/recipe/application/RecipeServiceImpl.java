@@ -468,7 +468,12 @@ public class RecipeServiceImpl implements RecipeService {
         List<String> userIngredients = memberId != null
                 ? fridgeIngredientRepository.findIngredientNamesByMemberId(memberId)
                 : List.of();
-        return getHybridSearchResults(memberId, request.getKeyword(), userIngredients, request.getExcludeAllergy(), topK);
+
+        List<String> requestExcluded = request.getExcludeIngredients() != null
+                ? request.getExcludeIngredients()
+                : List.of();
+
+        return getHybridSearchResults(memberId, request.getKeyword(), userIngredients, request.getExcludeAllergy(), requestExcluded, topK);
     }
 
     @Override
@@ -479,10 +484,14 @@ public class RecipeServiceImpl implements RecipeService {
 
     // [공통 하이브리드 검색 엔진 로직] — 단계별 로그로 어디서 실패하는지 확인
     private List<RecipeResponseDTO.RecipeDTO> getHybridSearchResults(Long memberId, String queryText, List<String> userIngredients, Boolean excludeAllergy) {
-        return getHybridSearchResults(memberId, queryText, userIngredients, excludeAllergy, 30);
+        return getHybridSearchResults(memberId, queryText, userIngredients, excludeAllergy, List.of(), 30);
     }
 
     private List<RecipeResponseDTO.RecipeDTO> getHybridSearchResults(Long memberId, String queryText, List<String> userIngredients, Boolean excludeAllergy, int topK) {
+        return getHybridSearchResults(memberId, queryText, userIngredients, excludeAllergy, List.of(), topK);
+    }
+
+    private List<RecipeResponseDTO.RecipeDTO> getHybridSearchResults(Long memberId, String queryText, List<String> userIngredients, Boolean excludeAllergy, List<String> requestExcluded, int topK) {
         String step = "";
         try {
             step = "1.getHybridEmbedding";
@@ -493,7 +502,19 @@ public class RecipeServiceImpl implements RecipeService {
 
             step = "2.getExcludedIngredients_and_filter";
             log.debug("[HybridSearch] step={}", step);
-            List<String> excludedIngredients = getExcludedIngredients(memberId);
+
+            // 1. DB에 저장된 사용자의 기본 기피 식재료 조회
+            List<String> dbExcludedIngredients = getExcludedIngredients(memberId);
+
+            // 2. DB 기피 식재료 + 요청받은 기피 식재료 병합 (HashSet으로 중복 제거)
+            Set<String> allExcludedIngredients = new HashSet<>(dbExcludedIngredients);
+            if (requestExcluded != null) {
+                allExcludedIngredients.addAll(requestExcluded);
+            }
+
+            // isSafeRecipe 파라미터 타입에 맞추기 위해 다시 List로 변환
+            List<String> finalExcludedIngredients = new ArrayList<>(allExcludedIngredients);
+
             // Qdrant에 "ingredients" payload keyword 인덱스가 없으면 필터 사용 시 INVALID_ARGUMENT → 빈 필터로 검색 후 Java에서 isSafeRecipe로 기피 재료 제외
             Points.Filter filter = Points.Filter.newBuilder().build();
 
@@ -544,7 +565,8 @@ public class RecipeServiceImpl implements RecipeService {
             List<Recipe> sortedRecipes = calculateHybridScoresAndSort(candidates, scrapIds, vectorScoreMap);
 
             return sortedRecipes.stream()
-                    .filter(recipe -> isSafeRecipe(recipe, excludedIngredients))
+                    // 3. 병합된 최종 기피 식재료 리스트(finalExcludedIngredients)를 필터링에 사용
+                    .filter(recipe -> isSafeRecipe(recipe, finalExcludedIngredients))
                     .limit(topK)
                     .map(recipe -> {
                         List<String> recipeIngredientNames = recipe.getIngredients().stream()
