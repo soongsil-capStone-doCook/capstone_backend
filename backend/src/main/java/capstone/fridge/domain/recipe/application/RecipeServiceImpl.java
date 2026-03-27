@@ -181,83 +181,55 @@ public class RecipeServiceImpl implements RecipeService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new memberException(ErrorStatus._BAD_REQUEST));
 
-        // 2. 사용자가 찜한(Scrap) 레시피 목록 조회
+        // 2. 사용자가 찜한(Scrap) 레시피 목록 및 사용자의 냉장고 재료 조회
         List<RecipeScrap> scraps = recipeScrapRepository.findAllByMemberIdWithRecipe(memberId);
-
         Set<Long> scrapIds = getScrappedRecipeIds(memberId);
+        List<String> userIngredients = fridgeIngredientRepository.findIngredientNamesByMemberId(memberId);
 
+        // 3. 찜한 레시피가 없을 경우: 랜덤 추천 (안전 필터 및 부족한 재료 계산 추가)
         if (scraps.isEmpty()) {
             log.info("찜한 레시피가 없어 랜덤 추천을 실행합니다. memberId={}", memberId);
 
-            // DB에서 랜덤하게 5개 가져오기 (Native Query 사용 시 가장 효율적)
-            List<Recipe> randomRecipes = recipeRepository.findRandomRecipes(5);
+            // 필터링에서 탈락할 것을 대비해 넉넉하게 15개 조회
+            List<Recipe> randomRecipes = recipeRepository.findRandomRecipes(15);
+            List<String> excludedIngredients = getExcludedIngredients(memberId);
 
             return randomRecipes.stream()
-                    .map(recipe -> RecipeConverter.toRecipeDTO(recipe, scrapIds.contains(recipe.getId())))
+                    .filter(recipe -> isSafeRecipe(recipe, excludedIngredients)) // 알레르기/기피 필터링
+                    .limit(5) // 최종 5개만 선택
+                    .map(recipe -> {
+                        // 부족한 재료 계산
+                        List<String> recipeIngredientNames = recipe.getIngredients().stream()
+                                .map(RecipeIngredient::getName).collect(Collectors.toList());
+                        List<String> missing = new ArrayList<>(recipeIngredientNames);
+                        missing.removeAll(userIngredients);
+
+                        return RecipeConverter.toRecipeDTO(recipe, missing, scrapIds.contains(recipe.getId()));
+                    })
                     .collect(Collectors.toList());
         }
 
-        // 3. 찜한 레시피들의 ID 목록 (이미 본 건 추천 제외하기 위함)
-        List<Long> scrapedRecipeIds = scraps.stream()
-                .map(scrap -> scrap.getRecipe().getId())
+        // 4. 찜한 레시피들의 제목을 모두 조합하여 하이브리드 검색용 텍스트 생성
+        // (예: "김치찌개 된장찌개 삼겹살구이")
+        String queryText = scraps.stream()
+                .map(scrap -> scrap.getRecipe().getTitle())
+                .collect(Collectors.joining(" "));
+
+        // 5. 공통 하이브리드 엔진 호출 (충분히 30개 조회)
+        // -> 이 안에서 Dense/Sparse 임베딩, RRF 병합, 기피식재료 필터, missing 계산이 모두 자동 수행됨
+        List<RecipeResponseDTO.RecipeDTO> searchResults = getHybridSearchResults(
+                memberId,
+                queryText,
+                userIngredients,
+                true, // excludeAllergy 활성화
+                30    // topK
+        );
+
+        // 6. 이미 찜한 레시피는 "새로운 추천"이 아니므로 결과에서 제외하고 최종 5개만 반환
+        return searchResults.stream()
+                .filter(dto -> !scrapIds.contains(dto.getRecipeId())) // 이미 찜한 레시피 필터링
+                .limit(5)
                 .collect(Collectors.toList());
-
-        // 4. 임베딩을 위한 텍스트 생성 (찜한 요리들의 제목과 재료를 조합)
-        // 예: "김치찌개 돼지고기 김치 된장찌개 두부..." -> 사용자의 취향 텍스트
-        StringBuilder queryBuilder = new StringBuilder();
-        for (RecipeScrap scrap : scraps) {
-            queryBuilder.append(scrap.getRecipe().getTitle()).append(" ");
-            // 필요하다면 재료도 추가: queryBuilder.append(scrap.getRecipe().getIngredientsString()).append(" ");
-        }
-        String queryText = queryBuilder.toString().trim();
-
-        // 5. 텍스트 임베딩 생성
-        List<Float> queryVector = embeddingService.getEmbedding(queryText);
-
-        // 6. Qdrant 필터 생성 (이미 찜한 레시피는 제외 - Must Not)
-        Filter.Builder filterBuilder = Filter.newBuilder();
-        for (Long excludedId : scrapedRecipeIds) {
-            filterBuilder.addMustNot(Condition.newBuilder()
-                    .setField(FieldCondition.newBuilder()
-                            .setKey("recipe_id")
-                            .setMatch(Match.newBuilder().setInteger(excludedId).build())
-                            .build())
-                    .build());
-        }
-        Filter filter = filterBuilder.build();
-
-        try {
-            // 7. Qdrant 유사도 검색
-            List<Points.ScoredPoint> searchResult = qdrantClient.searchAsync(
-                    Points.SearchPoints.newBuilder()
-                            .setCollectionName("recipes")
-                            .setFilter(filter) // 찜한거 제외 필터 적용
-                            .addAllVector(queryVector)
-                            .setLimit(5) // 5개 추천
-                            .build()
-            ).get();
-
-            // 8. 결과 ID 추출
-            List<Long> recommendedIds = searchResult.stream()
-                    .map(point -> Long.parseLong(point.getId().getNum() + ""))
-                    .collect(Collectors.toList());
-
-            if (recommendedIds.isEmpty()) {
-                return Collections.emptyList();
-            }
-
-            // 9. MySQL 상세 조회
-            List<Recipe> recipes = recipeRepository.findAllById(recommendedIds);
-
-            // 10. Converter를 사용해 DTO 변환
-            return recipes.stream()
-                    .map(recipe -> RecipeConverter.toRecipeDTO(recipe, scrapIds.contains(recipe.getId())))
-                    .collect(Collectors.toList());
-
-        } catch (InterruptedException | ExecutionException e) {
-            log.error("Scrap based Qdrant Search Failed: memberId={}", memberId, e);
-            throw new recipeException(ErrorStatus._RECIPE_SEARCH_FAIL);
-        }
     }
 
     @Override
