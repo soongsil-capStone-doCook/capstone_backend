@@ -406,7 +406,12 @@ public class RecipeServiceImpl implements RecipeService {
         String queryText = String.join(" ", ingredientNames);
 
         // 하이브리드 검색 수행 (내부적으로 2번과 동일한 로직 사용 가능)
-        return getHybridSearchResults(memberId, queryText, ingredientNames, true);
+        List<RecipeResponseDTO.RecipeDTO> results = getHybridSearchResults(memberId, queryText, ingredientNames, true);
+
+        // 부족한 재료가 아예 없는(0개인) 레시피만 반환
+        return results.stream()
+                .filter(dto -> dto.getMissingIngredients().isEmpty())
+                .collect(Collectors.toList());
     }
 
 
@@ -422,7 +427,12 @@ public class RecipeServiceImpl implements RecipeService {
         List<String> ingredientNames = myIngredients.stream().map(FridgeIngredient::getName).collect(Collectors.toList());
         String queryText = String.join(" ", ingredientNames);
 
-        return getHybridSearchResults(memberId, queryText, ingredientNames, false);
+        List<RecipeResponseDTO.RecipeDTO> results = getHybridSearchResults(memberId, queryText, ingredientNames, false);
+
+        // 부족한 재료가 1개 이상 5개 이하인 레시피만 반환
+        return results.stream()
+                .filter(dto -> dto.getMissingIngredients().size() > 0 && dto.getMissingIngredients().size() <= 5)
+                .collect(Collectors.toList());
     }
 
 
