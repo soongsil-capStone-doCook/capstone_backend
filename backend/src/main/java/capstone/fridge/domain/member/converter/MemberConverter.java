@@ -97,13 +97,14 @@ public class MemberConverter {
         List<MemberResponseDTO.ScrapRecipeDTO> scrapDTOs = scrapList.stream()
                 .map(scrap -> {
                     Recipe recipe = scrap.getRecipe();
-                    // ID 기반 썸네일 URL 생성 로직 적용
-                    String thumbnailUrl = S3_BASE_URL + "/recipes/" + recipe.getId() + "/main.png";
+
+                    // 추천 로직과 동일하게 URL 조립 (중복된 "/recipes/" 제거)
+                    String mainImageUrl = S3_BASE_URL + recipe.getId() + "/main.png";
 
                     return MemberResponseDTO.ScrapRecipeDTO.builder()
                             .recipeId(recipe.getId())
                             .title(recipe.getTitle())
-                            .thumbnailUrl(thumbnailUrl) // 생성된 URL 주입
+                            .thumbnailUrl(mainImageUrl) // 수정된 DTO 필드명에 맞춤
                             .build();
                 })
                 .collect(Collectors.toList());
